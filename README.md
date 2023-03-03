@@ -52,7 +52,7 @@ A high-level overview of the steps `setup_aks_master.sh` will perform:
 
 - Prints a friendly success message at the end with tips on how to connect to your cluster and how to add worker nodes.
 
-Once your master node is up and running you can use the apply manifests found in the [TestManifests/Storage](https://github.com/7wingfly/autok8s/tree/main/TestManifests/Storage) directory to test out NFS and SMB and storage. In future other testing manifests will be added.
+Once your master node is up and running you can use the manifests found in the [TestManifests/Storage](https://github.com/7wingfly/autok8s/tree/main/TestManifests/Storage) directory to test out NFS and SMB and storage. In the near future other manifests will be added for things like networking.
 
 ## Before you run it!
 
