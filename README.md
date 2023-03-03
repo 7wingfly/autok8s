@@ -2,9 +2,9 @@
 
 The idea behind this project is to fully automate the installation of a Kubernetes cluster on bare-metal or virtual machines. The primary target audience for this is k8s nerds that want a full cluster at home for free, but this may also help those looking to create an on-premis or entirely spot instance cluster in a professional environment.
 
-Unlike managed Kubernetes services such as EKS, AKS or GKE, the control-plane (master) node is something that you have to setup yourself. Cloud providors abstract this away from you. This script fully automates the installation and configuration of Docker, Kubernetes and various Helm charts for networking, load balancers and storage on the master node via bash scripts, as well as automation of worker nodes.
+Unlike managed Kubernetes services such as EKS, AKS or GKE, the control-plane (master) node is something that you have to setup yourself. Cloud providers abstract this away from you. This script fully automates the installation and configuration of Docker, Kubernetes and various Helm charts for networking, load balancers and storage on the master node via bash scripts, as well as automation of worker nodes.
 
-There are pleanty of great articles out there on how to do this, but the process is not arbitary. It can take a long time to get working and involves quite a bit of manual work. 
+There are plenty of great articles out there on how to do this, but the process is not arbitrary. It can take a long time to get working and involves quite a bit of manual work. 
 
 The idea of Autok8s is to run a script, wait 15ish minutes, and have a fully functional and ready to go Kubernetes cluster, just as you would have in the cloud.
 
@@ -20,7 +20,7 @@ A high-level overview of the steps `setup_aks_master.sh` will perform include:
 
 - Configure TCP/IP settings including DNS servers and search domains. (Optional. Added for convenience and time saving).
 
-- Installs prerequsites packages such as `apt-transport-https`, `ca-certificates`, etc.  
+- Installs prerequisite packages such as `apt-transport-https`, `ca-certificates`, etc.  
 
 - Adds Docker and Kubernetes repositories.
 
@@ -51,4 +51,4 @@ A high-level overview of the steps `setup_aks_master.sh` will perform include:
 
 Within the scripts are a collection of User Variables which you will need to set before running them. If you run this on a VM and have the ability to take a snapshot before you start, it is recommended you do this because if the script fails or if you want to do it again with different options then running the script more than once may have unexpected results.
 
-Also within the script you will find URLs for documentation and sources relating to the various tasks which you can read to gain understanding of whats being installed, why, and what the options might be.
+Also within the script you will find URLs for documentation and sources relating to the various tasks which you can read to gain understanding of what's being installed, why, and what the options might be.
