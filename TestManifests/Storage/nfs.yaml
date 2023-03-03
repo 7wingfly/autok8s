@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nfs-storage-tests  
+  labels:
+    name: nfs-storage-tests
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: pvc-nfs
+  namespace: nfs-storage-tests
+spec:  
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi  
+  storageClassName: nfs-srv-k8s-green-master
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pwsh-nfs
+  namespace: nfs-storage-tests
+  labels:
+    app: pwsh
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: pwsh
+      labels:
+        app: pwsh
+    spec:      
+      containers:
+        - name: pwsh
+          image: mcr.microsoft.com/powershell:lts-ubuntu-20.04
+          command:
+            - "pwsh"
+            - "-Command"
+            - "write-host Starting; while (1) { Add-Content -Encoding Ascii /mnt/nfs/data.txt $(Get-Date -Format u); sleep 5; write-host hello; }"
+          volumeMounts:
+            - name: nfs
+              mountPath: "/mnt/nfs"
+              subPath: subPath
+      volumes:
+        - name: nfs
+          persistentVolumeClaim:
+            claimName: pvc-nfs
+  selector:
+    matchLabels:
+      app: pwsh
