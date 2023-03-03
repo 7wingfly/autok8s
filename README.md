@@ -10,14 +10,11 @@ This project aims to fully automate the installation and configuration of a Kube
 
 In short, the idea of Autok8s is to run a script, wait 15ish minutes, and have a fully functional and ready to go Kubernetes cluster, just as you would have in the cloud.
 
----
 ## Future Plans
 
 There will be a separate set of scripts for those wanting to make use of the vSphere CPI and CSI drivers, and possibly in the future other drivers or hardware/environments as well. 
 
 This project is very early days and thus far has only been tested on a fresh installation of Ubuntu 20.04 on an older VMware hypervisor (without the CPI and CSI drivers). In the future more testing will be performed to ensure it works as expected in any environment. If you do run this script on a different environment, please let me know your findings and feel free to create pull requests.
-
----
 
 ## What happens when I run this thing?
 
@@ -57,11 +54,9 @@ A high-level overview of the steps `setup_aks_master.sh` will perform:
 
 Once your master node is up and running you can use the apply manifests found in the [TestManifests/Storage](https://github.com/7wingfly/autok8s/tree/main/TestManifests/Storage) directory to test out NFS and SMB and storage. In future other testing manifests will be added.
 
----
 ## Before you run it!
-Within the scripts are a collection of User Variables which you will need to set before running them. If you run this on a VM and have the ability to take a snapshot before you start, it is recommended you do so because if the script fails or if you want to do it again with different options then running the script more than once may have unexpected results.
 
----
+Within the scripts are a collection of User Variables which you will need to set before running them. If you run this on a VM and have the ability to take a snapshot before you start, it is recommended you do so because if the script fails or if you want to do it again with different options then running the script more than once may have unexpected results.
 
 ## Links
 
