@@ -181,7 +181,7 @@ else
   apt-get install -qqy kubelet=$k8sVersion kubeadm=$k8sVersion kubectl=$k8sVersion
 fi
 
-# Init Kubernetes
+# Init Kubernetes https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
 
