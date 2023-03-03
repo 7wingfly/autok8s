@@ -34,7 +34,7 @@ A high-level overview of the steps `setup_aks_master.sh` will perform:
 
 - Initializes Kubernetes with the `kubeadm` command.
 
-- Creates the `~./kube/config` files so you can use `kubectl` as soon as its finished.
+- Creates the `~/.kube/config` files so you can use `kubectl` as soon as its finished.
 
 - Installs Flannel layer 3 networking.
 
