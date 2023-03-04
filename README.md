@@ -66,8 +66,8 @@ or
 
 ```
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
-    --ip-address 192.168.0.230 \
-    --k8s-load-balancer-ip-range 192.168.0.240-192.168.0.249
+    --ip-address 192.168.0.10 \
+    --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
 
 ```
 
