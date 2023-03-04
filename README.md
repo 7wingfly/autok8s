@@ -6,7 +6,7 @@ The primary target audience is anyone looking to try out Kubernetes for the firs
 
 Unlike managed Kubernetes services such as EKS, AKS or GKE, the control-plane (master) node is not abstracted away from you and is something that you have to setup yourself. There are plenty of great articles out there on how to do this, but the process is not arbitrary. It can take a long time to get working and involves quite a bit of manual work. 
 
-This project aims to fully automate the installation and configuration of a Kubernetes control-plane node and the worker nodes, and adds Helm charts for the load balancer, persistent storage, etc, once Kubernetes is istalled.
+This project aims to fully automate the installation and configuration of a Kubernetes control-plane node and the worker nodes (script to be added soon), and adds Helm charts for the load balancer, persistent storage, etc, once Kubernetes is istalled.
 
 In short, the idea of Autok8s is to run a script, wait 30ish minutes, and have a fully functional and ready to go Kubernetes cluster, just as you would have in the cloud.
 
