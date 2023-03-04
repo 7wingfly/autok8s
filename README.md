@@ -14,7 +14,7 @@ In short, the idea of Autok8s is to run a script, wait 30ish minutes, and have a
 
 There will be a separate set of scripts for those wanting to make use of the vSphere CPI and CSI drivers, and possibly in the future other drivers or hardware/environments as well. 
 
-This project is very early days and thus far has only been tested on a fresh installation of Ubuntu 20.04 on an older VMware hypervisor (without the CPI and CSI drivers). In future more testing will be performed to ensure it works as expected in other environment. If you do use this in a different environment, please let me know your findings and feel free to create pull requests if you discover and issues and fixes for them.
+This project is very early days and thus far has only been tested on a fresh installation of Ubuntu 20.04 on an older VMware hypervisor (without the CPI and CSI drivers). In future more testing will be performed to ensure it works as expected in other environment. If you do use this in a different environment, please let me know your findings and feel free to create pull requests if you discover any issues and find fixes for them.
 
 ## What Does This Do?
 
