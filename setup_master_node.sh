@@ -551,10 +551,22 @@ fi
 
 # Print success message and tips
 
+export JOIN_COMMAND_OUTPUT=$(kubeadm token create --print-join-command)
+read -ra JOIN_WORDS <<< "$JOIN_COMMAND_OUTPUT"
+
+export JOIN_IP=$(echo ${JOIN_WORDS[2]} | cut -d: -f1)
+export JOIN_PORT=$(echo ${JOIN_WORDS[2]} | cut -d: -f2)
+export JOIN_TOKEN="${JOIN_WORDS[4]}"
+export JOIN_CERT_HASH="${JOIN_WORDS[6]}"
+
 echo -e "\033[32m\nInstallation Complete!\n\033[0m"
-echo -e "\033[36mINFO:\nRun \033[0m\033[35mkubectl get nodes\033[0m\033[36m to test your connection to your master node.\033[0m"
+echo -e "\033[36mRun \033[0m\033[35mkubectl get nodes\033[0m\033[36m to test your connection to your master node.\033[0m"
 echo -e "\033[36mRun \033[0m\033[35mcat ~/.kube/config\033[0m\033[36m to get the kube config. You can use this on your workstation with kubectl or Lens to manager your new cluster.\033[0m"
 echo -e "\033[36mRun \033[0m\033[35mkubeadm token create --print-join-command\033[0m\033[36m to print the node join command for your cluster. \033[0m"
-echo -e "\033[36m\nThe node join command is:\033[0m\033[35m"
-kubeadm token create --print-join-command
-echo -e "\033[0m"
+echo -e "\033[36m\nThe Kubernetes node join command is:\n\033[0m\033[35m$JOIN_COMMAND_OUTPUT\033[0m"
+echo -e "\033[36m\nThe Autok8s node join command which uses the setup_worker_node.sh script is:\033[0m\033[35m"
+echo -e "curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_worker_node.sh | sudo bash -s -- \\
+    --k8s-master-ip $JOIN_IP
+    --k8s-master-port $JOIN_PORT
+    --token $JOIN_TOKEN \\
+    --discovery-token-ca-cert-hash $JOIN_CERT_HASH\n"
