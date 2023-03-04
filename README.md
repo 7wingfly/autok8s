@@ -68,7 +68,6 @@ or
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
     --ip-address 192.168.0.10 \
     --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
-
 ```
 
 Check out the Master Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/MasterNodeParameters.md) for all available options.
