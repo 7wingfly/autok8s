@@ -80,13 +80,13 @@ curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_nod
     --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
 ```
 
-
-
-
+The installation can take a fairly long time depending on your hardware and internet speed. Allow for a minimum of 30 minutes, but your milage may vary.
 
 Once the installation is complete the following message will be shown detailing the command for joining woker nodes to your cluster as well as some other tips and infomation.
 
 ![complete-message](https://user-images.githubusercontent.com/13077550/222903364-967f1c24-f1cb-435c-b136-179a4d123764.JPG)
+
+As the message suggests you can use the `cat ~/.kube/config` command copy your kube config and paste it to your local machine to use with `kubectl` or a Kubernetes IDE such as [Lens](https://k8slens.dev/).
 
 ## Links
 
