@@ -42,11 +42,11 @@ A high-level overview of the steps `setup_aks_master.sh` will perform:
 
 - Installs NFS file server on the host, NFS CSI drivers and adds storage class.
 
-    (This is entirely optional and not recommended for production use. It's mainly for those that want a working storage solution out of the box.)
+    (This is entirely optional and not recommended for production use. It's mainly for those that want a working storage solution out of the box).
 
 - Installs SMB file server on the host, SMB CSI drivers and adds storage class.
 
-    (Again this optional. You can also specify an existing server SMB and/or NFS server to use rather than make the master node a file server.)
+    (Again this is optional. You can also specify an existing SMB and/or NFS server to use rather than make the master node a file server).
 
 - Installs MetalLB (For use with home or on-premis networks. Requires that you reserve a range of IP addresses on your local network to be used by Kubernetes service objects).
 
