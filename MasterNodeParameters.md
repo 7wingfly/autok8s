@@ -1,5 +1,7 @@
 # Master Node Parameters
-The following is a list of all available parameters you can use with the `setup_master_node.sh`. 
+The following is a list of all available parameters you can use with the `setup_master_node.sh` script. At the bottom are some examples that can help you get started and some notes on things to watch out for when setting some of the values. 
+<br>
+<br>
 
 |Parameter Name|Description|Default Value|Example Value|Required|
 |--- |--- |--- |--- |--- |

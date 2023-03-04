@@ -56,13 +56,13 @@ Once your master node is up and running you can use the manifests found in the [
 
 ## Before you run it!
 
-There a quite a few paramters you can pass into the script. At the very least you will need to provid an IP address for the server and the IP range for the load balancer. 
+There a quite a few paramters you can pass into the script. At the very least you will need to provide an IP address for the server and the IP range for the load balancer. 
 
 ```
 ./setup_master_node.sh --ip-address 192.168.0.10 --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
 ```
 
-Check out the Master Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/ParametersMasterNode.md) for all available options.
+Check out the Master Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/MasterNodeParameters.md) for all available options.
 
 If you run this on a VM and have the ability to take a snapshot before you start, it is recommended you do so because if the script fails or if you want to do it again with different options then running the script more than once may have unexpected results.
 
