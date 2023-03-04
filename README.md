@@ -1,20 +1,20 @@
 # Autok8s (Automatic Kubernetes)
 
-The idea behind this project is to fully automate the installation of a Kubernetes cluster on bare-metal or virtual machines. The primary target audience for this is k8s nerds that want a full cluster at home for free, but this may also help those looking to create an on-premis or entirely spot instance cluster in a professional environment.
+The idea behind this project is to fully automate the installation of a self-hosted Kubernetes cluster on a bare-metal or virtual machine based environment. 
 
-Unlike managed Kubernetes services such as EKS, AKS or GKE, the control-plane (master) node is not abstracted away from you and is something that you have to setup yourself. 
+The primary target audience is anyone looking to try out Kubernetes for the first time without spending any money, k8s enthusiasts/profesionals that want a cluster at home for free or those who are familiar with cloud offerings such as EKS or AKS but would like to learn more about how Kubernetes works under the hood. This may also help those looking to create an on-premis or entirely spot instance cluster in a professional environment.
 
-There are plenty of great articles out there on how to do this, but the process is not arbitrary. It can take a long time to get working and involves quite a bit of manual work. 
+Unlike managed Kubernetes services such as EKS, AKS or GKE, the control-plane (master) node is not abstracted away from you and is something that you have to setup yourself. There are plenty of great articles out there on how to do this, but the process is not arbitrary. It can take a long time to get working and involves quite a bit of manual work. 
 
 This project aims to fully automate the installation and configuration of a Kubernetes control-plane node and the worker nodes, and adds Helm charts for the load balancer, persistent storage, etc, once Kubernetes is istalled.
 
-In short, the idea of Autok8s is to run a script, wait 15ish minutes, and have a fully functional and ready to go Kubernetes cluster, just as you would have in the cloud.
+In short, the idea of Autok8s is to run a script, wait 30ish minutes, and have a fully functional and ready to go Kubernetes cluster, just as you would have in the cloud.
 
 ## Future Plans
 
 There will be a separate set of scripts for those wanting to make use of the vSphere CPI and CSI drivers, and possibly in the future other drivers or hardware/environments as well. 
 
-This project is very early days and thus far has only been tested on a fresh installation of Ubuntu 20.04 on an older VMware hypervisor (without the CPI and CSI drivers). In the future more testing will be performed to ensure it works as expected in any environment. If you do run this script on a different environment, please let me know your findings and feel free to create pull requests.
+This project is very early days and thus far has only been tested on a fresh installation of Ubuntu 20.04 on an older VMware hypervisor (without the CPI and CSI drivers). In future more testing will be performed to ensure it works as expected in other environment. If you do use this in a different environment, please let me know your findings and feel free to create pull requests if you discover and issues and fixes for them.
 
 ## What Does This Do?
 
