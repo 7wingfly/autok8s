@@ -1,5 +1,5 @@
 # Master Node Parameters
-The following is a list of all available parameters you can use with the `setup_master_node.sh` script. At the bottom are some examples that can help you get started and some notes on things to watch out for when setting some of the values. 
+The following is a list of all available parameters you can use with the `setup_master_node.sh` script. At the bottom are some examples that can help you get started and some notes on things to watch out for when setting some of the parameter values. 
 <br>
 <br>
 
@@ -30,9 +30,15 @@ The following is a list of all available parameters you can use with the `setup_
 
 ## Notes
 
-For both the NFS and SMB storage options. Setting `--smb-install-<type>` to `false` and setting `--<type>-server` to the hostname of your file server will result in the CSI drivers being installed and a storage class being created configured to communicate with the remote server. For this to work the appropriate permissions must be granted on the folder / share, and for SMB valid credentials must be specified.
+### Persistent Volumes
 
-If you set `--k8s-allow-master-node-schedule` to `false` it will not be possible to deploy any workloads until a worker node has joined the cluster. This includes MetalLB (the load-balancer used to give make your cluster accessible from your local network). You can enable or disable scheduling after installation with these `kubectl` commands
+To use an existing NFS and/or SMB file server for persistent volumes (rather than making the master node a file server itself), simply set `--smb-install-nfs` or `--smb-install-smb` to false and set `--nfs-server` or `--smb-server` to the host name or IP address of your existing file server. For SMB you will need to provide the credentials with `--smb-username` and `--smb-password`. 
+
+Applying these options will install the NFS and/or SMB CSI driver(s) and create [StorageClass(es)](https://kubernetes.io/docs/concepts/storage/storage-classes/) configured to use your existing file server for [PersistentVolumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/). 
+
+### Control-Plane (Master) Node Scheduling
+
+If you set `--k8s-allow-master-node-schedule` to `false` it will not be possible to deploy any workloads until a worker node has joined the cluster. This includes MetalLB (the load-balancer used to give make your cluster accessible from your local network). You can enable or disable scheduling after installation with these `kubectl` commands.
 ```
 # Enable
 kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule-
@@ -41,7 +47,9 @@ kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule-
 kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule
 ```
 
-If you add more than 3 DNS servers to the host TCP/IP settings, Kubernetes will display errors relating to exceeding the nameserver limit. While this will not stop anything from work, the error messages can be annoying and Kubernetes will only use the first three anyway so you should aim to keep it between 1 and 3.
+### Host Network DNS Servers
+
+If you add more than 3 DNS servers to the host TCP/IP settings, Kubernetes will display errors about exceeding the nameserver limit. While this will not prevent anything from working, the error messages can be annoying and Kubernetes will only use the first three anyway so you should aim to keep it between 1 and 3.
 
 ## Parameter Examples
 
