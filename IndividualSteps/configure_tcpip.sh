@@ -28,6 +28,11 @@ fi
 
 echo -e "\033[32mConfiguring Network Settings\033[0m"
 
+IFS=. read -r i1 i2 i3 i4 <<< "$ipAddress"
+IFS=. read -r m1 m2 m3 m4 <<< "$netmask"
+
+cidr=$(echo "obase=2; $(( (m1 << 24) + (m2 << 16) + (m3 << 8) + m4 ))" | bc | tr -d '\n' | sed 's/0*$//' | wc -c)
+
 cat <<EOF | sudo tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
   version: 2
@@ -35,7 +40,7 @@ network:
     $interface:
       dhcp4: false
       dhcp6: false
-      addresses: [$ipAddress/24]
+      addresses: [$ipAddress/$cidr]
       routes:
       - to: default
         via: $defaultGateway

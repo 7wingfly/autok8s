@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# User Variables
+# Define Variables, Default Values & Parameters 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # ------------------------------
 # Host TCP/IP Settings
 # ------------------------------
 # These options configure the TCP/IP settings of this server. These options have been added for your convenience however, you may not want to
-# do this if your settings are already configured in which case you can set 'configureTCPIPSetting' to 'false'. You will still need to 
-# specify this machines IP address though as it will be use by other parts of the script.
+# do this if your settings are already configured. You will still need to specify this machines IP address though as it will be required by 
+# other parts of the script.
 #
 # WARNING: If this is enabled and the IP address will be changed, make sure you are not running this script from a remote shell.
 # 
-export configureTCPIPSetting=true
+export configureTCPIPSetting=false
 export interface="eth0"                                     # Find with 'ip addr'
 export ipAddress=""                                         # Require even if 'configureTCPIPSetting' is set to 'false'.
 export netmask=""
@@ -50,6 +50,173 @@ export smbUsername=$SUDO_USER
 export smbPassword="password"
 export smbDefaultStorageClass=true                          # Only one storage class should be set as default.
 
+# ------------------------------
+# Parameters
+# ------------------------------
+#
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        --configure-tcpip) configureTCPIPSetting="$2"; shift; shift;;
+        --interface) interface="$2"; shift; shift;;
+        --ip-address) ipAddress="$2"; shift; shift;;
+        --netmask) netmask="$2"; shift; shift;;
+        --default-gateway) defaultGateway="$2"; shift; shift;;
+        --dns-servers) dnsServers=($2); shift; shift;;
+        --dns-search) dnsSearch=($2); shift; shift;;
+        --k8s-version) k8sVersion="$2"; shift; shift;;
+        --k8s-load-balancer-ip-range) k8sLoadBalancerIPRange="$2"; shift; shift;;
+        --k8s-allow-master-node-schedule) k8sAllowMasterNodeSchedule="$2"; shift; shift;;
+        --nfs-install-server) nfsInstallServer="$2"; shift; shift;;
+        --nfs-server) nfsServer="$2"; shift; shift;;
+        --nfs-share-path) nfsSharePath="$2"; shift; shift;;
+        --nfs-default-storage-class) nfsDefaultStorageClass="$2"; shift; shift;;
+        --smb-install-server) smbInstallServer="$2"; shift; shift;;
+        --smb-server) smbServer="$2"; shift; shift;;
+        --smb-share-path) smbSharePath="$2"; shift; shift;;
+        --smb-share-name) smbShareName="$2"; shift; shift;;
+        --smb-username) smbUsername="$2"; shift; shift;;
+        --smb-password) smbPassword="$2"; shift; shift;;
+        --smb-default-storage-class) smbDefaultStorageClass="$2"; shift; shift;;
+        *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
+    esac
+done
+
+# Perform Validation
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+export PARAM_CHECK_PASS=true
+
+if [[ ! "$configureTCPIPSetting" =~ ^(true|false)$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--configure-tcpip\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! "$k8sAllowMasterNodeSchedule" =~ ^(true|false)$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-allow-master-node-schedule\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+  PARAM_CHECK_PASS=false
+elif [[ "$k8sAllowMasterNodeSchedule" == false ]]; then
+  echo -e "\e[33mWarning:\e[0m Master (control-plane) node scheduling will not be enabled. This means that non-core pods will not be scheduled until a worker node is added to the cluster. This includes Metal LB which will prevent external traffic from reach the cluster."
+fi
+
+if [[ ! "$smbInstallServer" =~ ^(true|false)$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--configure-tcpip\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ -z "$ipAddress" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--ip-address\e[0m is required."
+  PARAM_CHECK_PASS=false
+elif [[ ! $ipAddress =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--ip-address\e[0m value \e[35m$ipAddress\e[0m is not a valid IP address."
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ -z "$k8sLoadBalancerIPRange" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-load-balancer-ip-range\e[0m is required. Must be a valid IP range or CIDR."
+  PARAM_CHECK_PASS=false
+elif [[ ! "$k8sLoadBalancerIPRange" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}-([0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-load-balancer-ip-range\e[0m range must be a valid IP range or CIDR."
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$configureTCPIPSetting" == true ]]; then
+  if [[ -z "$interface" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--interface\e[0m is required when \e[35m--configure-tcpip\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$netmask" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--netmask\e[0m is required when \e[35m--configure-tcpip\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false    
+  elif [[ ! "$netmask" =~ ^(255|254|252|248|240|224|192|128|0)\.((255|254|252|248|240|224|192|128|0)\.){2}(255|254|252|248|240|224|192|128|0)$ ]]; then  
+    echo -e "\e[31mError:\e[0m \e[35m--netmask\e[0m value \e[35m$netmask\e[0m is not a valid network mask."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$defaultGateway" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--default-gateway\e[0m is required when \e[35m--configure-tcpip\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  elif [[ ! $defaultGateway =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--default-gateway\e[0m value \e[35m$defaultGateway\e[0m is not a valid IP address."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ "${#dnsServers[@]}" -gt 3 ]]; then
+    echo -e "\e[33mWarning:\e[0m Number of DNS servers should not be greater than 3. Kubernetes may display errors but will continue to work."
+  fi
+  for ip in "${dnsServers[@]}"; do
+    if [[ ! $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        echo -e "\e[31mError:\e[0m DNS server \e[35m$ip\e[0m is not a valid IP address."
+        PARAM_CHECK_PASS=false
+    fi
+  done
+fi
+
+if [[ ! "$nfsInstallServer" =~ ^(true|false)$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--nfs-install-server\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+  PARAM_CHECK_PASS=false
+elif [[ "$nfsInstallServer" = true ]]; then
+  if [[ -z "$nfsSharePath" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--nfs-share-path\e[0m is required if \e[35m--nfs-install-server\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false  
+  elif [[ ! "$nfsSharePath" =~ ^\/(.+\/)*[^\/]+$ ]]; then  
+    echo -e "\e[31mError:\e[0m \e[35m--nfs-share-path\e[0m value \e[35m$nfsSharePath\e[0m is not a valid path."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$nfsServer" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--nfs-server\e[0m is required if \e[35m--nfs-install-server\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false  
+  fi
+  if [[ ! "$nfsDefaultStorageClass" =~ ^(true|false)$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--nfs-default-storage-class\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+    PARAM_CHECK_PASS=false
+  fi
+fi
+
+if [[ -n "$nfsServer" && ! $nfsServer =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--nfs-server\e[0m value \e[35m$smbServer\e[0m is not a valid hostname."
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! "$smbInstallServer" =~ ^(true|false)$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--smb-install-server\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+  PARAM_CHECK_PASS=false
+elif [[ "$smbInstallServer" = true ]]; then
+  if [[ -z "$smbSharePath" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--smb-share-path\e[0m is required if \e[35m--smb-install-server\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false  
+  elif [[ ! "$smbSharePath" =~ ^\/(.+\/)*[^\/]+$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--smb-share-path\e[0m value \e[35m$smbSharePath\e[0m is not a valid path."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$smbShareName" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--smb-share-name\e[0m is required if \e[35m--smb-install-server\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  elif [[ ! "$smbShareName" =~ ^[a-zA-Z0-9_\$\.\-]+$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--smb-share-name\e[0m value \e[35m$smbShareName\e[0m is not a SMB share name."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$smbServer" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--smb-server\e[0m is required if \e[35m--smb-install-server\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false  
+  fi
+  if [[ ! "$smbDefaultStorageClass" =~ ^(true|false)$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--smb-default-storage-class\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+    PARAM_CHECK_PASS=false
+  fi
+fi
+
+if [[ -n "$smbServer" && ! $smbServer =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--smb-server\e[0m value \e[35m$smbServer\e[0m is not a valid hostname."
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$nfsDefaultStorageClass" = true && "$smbDefaultStorageClass" = true ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--smb-default-storage-class\e[0m and \e[35m--nfs-default-storage-class\e[0m cannot both be set to true at the same time.\e[0m"
+fi
+
+if [ $PARAM_CHECK_PASS == false ]; then
+  exit 1
+fi
+
 # Install Kubernetes
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -84,6 +251,11 @@ if [ $configureTCPIPSetting == true ]; then
 
   echo -e "\033[32mConfiguring Network Settings\033[0m"
 
+  IFS=. read -r i1 i2 i3 i4 <<< "$ipAddress"
+  IFS=. read -r m1 m2 m3 m4 <<< "$netmask"
+
+  cidr=$(echo "obase=2; $(( (m1 << 24) + (m2 << 16) + (m3 << 8) + m4 ))" | bc | tr -d '\n' | sed 's/0*$//' | wc -c)
+
   cat <<EOF | tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
   version: 2
@@ -91,7 +263,7 @@ network:
     $interface:
       dhcp4: false
       dhcp6: false
-      addresses: [$ipAddress/24]
+      addresses: [$ipAddress/$cidr]
       routes:
       - to: default
         via: $defaultGateway
