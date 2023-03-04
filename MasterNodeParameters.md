@@ -34,7 +34,7 @@ The following is a list of all available parameters you can use with the `setup_
 
 To use an existing NFS and/or SMB file server for [PersistentVolumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) (Instead of using the master node as a file server), simply set `--smb-install-nfs` or `--smb-install-smb` to false and set `--nfs-server` or `--smb-server` to the host name or IP address of your existing file server. For SMB you will need to provide the credentials with `--smb-username` and `--smb-password` aswell.
 
-Applying these options will install the NFS and/or SMB CSI driver(s) and create [StorageClass(es)](https://kubernetes.io/docs/concepts/storage/storage-classes/) configured to use your existing file server for  
+Applying these options will install the NFS and/or SMB CSI driver(s) and create [StorageClass(es)](https://kubernetes.io/docs/concepts/storage/storage-classes/) configured to use your existing file server for Persistent Volumes.
 
 ### Control-Plane (Master) Node Scheduling
 
