@@ -16,11 +16,9 @@ There will be a separate set of scripts for those wanting to make use of the vSp
 
 This project is very early days and thus far has only been tested on a fresh installation of Ubuntu 20.04 on an older VMware hypervisor (without the CPI and CSI drivers). In the future more testing will be performed to ensure it works as expected in any environment. If you do run this script on a different environment, please let me know your findings and feel free to create pull requests.
 
-## What happens when I run this thing?
+## What Does This Do?
 
-> ⚠ Warning: <br> It's highly recommended that you run this on a brand new Ubuntu 20.04 virtual machine. When you install the Ubuntu OS and are presented with the list of optional packages to install, DO NOT select docker. The version of docker installed will be `docker.io` which is no longer compatible with Kubernetes. This script will install `docker-ce` for you instead.
-
-A high-level overview of the steps `setup_aks_master.sh` will perform:
+Here's a high-level overview of the steps `setup_aks_master.sh` will perform:
 
 - Configure TCP/IP settings including DNS servers and search domains. (Optional. Added for convenience and time saving).
 
@@ -54,15 +52,27 @@ A high-level overview of the steps `setup_aks_master.sh` will perform:
 
 Once your master node is up and running you can use the manifests found in the [TestManifests/Storage](https://github.com/7wingfly/autok8s/tree/main/TestManifests/Storage) directory to test out NFS and SMB and storage. In the near future other manifests will be added for things like networking.
 
-## Before you run it!
+## Getting Ready!
 
-There a quite a few paramters you can pass into the script. At the very least you will need to provide an IP address for the server and the IP range for the load balancer.
+It's highly recommended that you run this on a brand new Ubuntu 20.04 virtual machine. When you install the Ubuntu OS and are presented with the list of optional packages to install, DO NOT select docker. This will install the `docker.io` package which is no longer compatible with Kubernetes. This script will install the `docker-ce` package for you instead.
+
+If you run this on a VM and have the ability to take a snapshot before you start, it is recommended you do so because if the script fails or if you want to do it again with different options then running the script more than once may have unexpected results. 
+
+There a quite a few paramters you can pass into the script. At the very least you will need to provide an IP address for the server and the IP range for the load balancer. Both the static IP for the node(s) and the IP range for the load-balancer should be outside of your DHCP scope, or alternatively DHCP reservations should be made to ensure you do not have IP address conflicts between the [services](https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer) in Kubernetes and other devices on your local network.
+
+You should read he Master Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/MasterNodeParameters.md) for details on all available parameters before you begin.
+
+## Go Time!
+You can run the `setup_master_node.sh` script in one of two ways. Download/copy & paste the script directly from [here](https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh), give it execute permissions and run it as `sudo`.
 
 ```
-sudo ./setup_master_node.sh --ip-address 192.168.0.10 --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
+sudo chmod +x ./setup_master_node.sh
+sudo ./setup_master_node.sh \
+    --ip-address 192.168.0.10 \
+    --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
 ```
 
-or
+Or you can run it run it straight from GitHub using the `curl` command as follows:
 
 ```
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
@@ -70,9 +80,9 @@ curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_nod
     --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
 ```
 
-Check out the Master Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/MasterNodeParameters.md) for all available options.
 
-If you run this on a VM and have the ability to take a snapshot before you start, it is recommended you do so because if the script fails or if you want to do it again with different options then running the script more than once may have unexpected results.
+
+
 
 Once the installation is complete the following message will be shown detailing the command for joining woker nodes to your cluster as well as some other tips and infomation.
 
