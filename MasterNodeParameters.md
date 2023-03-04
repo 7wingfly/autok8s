@@ -5,17 +5,17 @@ The following is a list of all available parameters you can use with the `setup_
 
 |Parameter Name|Description|Default Value|Example Value|Required|
 |--- |--- |--- |--- |--- |
-|`--configure-tcpip`|Set to `true` to configure TCP/IP settings of this server.|`false`|true|No|
+|`--configure-tcpip`|Set to `true` to configure TCP/IP settings of this server.|`false`|`true`|No|
 |`--interface`|The interface to configure IP settings for.|`eth0`|`ens160`|When `--configure-tcpip` is `true`|
 |`--ip-address`|The IP address to use.||`192.168.0.100`|Yes|
 |`--netmask`|The netmask to use.||`255.255.255.0`|When `--configure-tcpip` is `true`|
 |`--default-gateway`|The default gateway to use.||`192.168.0.1`|When `--configure-tcpip` is `true`|
-|`--dns-servers`|The DNS servers to use.|`"8.8.8.8 4.4.4.4"`|"192.168.0.2 192.168.0.3"|No|
+|`--dns-servers`|The DNS servers to use.|`"8.8.8.8 4.4.4.4"`|`"192.168.0.2 192.168.0.3"`|No|
 |`--dns-search`|The local DNS search domains.|`"domain.local"`|`"example.com domain.internal"`|No|
 |`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.25.0-00`|No|
 |`--k8s-load-balancer-ip-range`|The IP range or CIDR for Kubernetes load balancer.||`192.168.0.10-192.168.0.15`<br>or<br>`192.168.0.1/24`|No|
-|`--k8s-allow-master-node-schedule`|Set to true to allow master node to schedule pods.|true|false|No|
-|`--nfs-install-server`|Set to `true` to install NFS server.|true|false|No|
+|`--k8s-allow-master-node-schedule`|Set to `true` to allow master node to schedule pods.|`true`|`false`|No|
+|`--nfs-install-server`|Set to `true` to install NFS server.|`true`|`false`|No|
 |`--nfs-server`|The NFS server to use.|`$HOSTNAME`|`192.168.0.100`|When `--nfs-install-server` is `true`|
 |`--nfs-share-path`|The NFS share path to use.|`/shares/nfs`|`/mnt/nfs`|When `--nfs-install-server` is `true`|
 |`--nfs-default-storage-class`|Set to `true` to use NFS as the default storage class.|`false`|`true`|No|
