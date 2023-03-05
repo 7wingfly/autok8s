@@ -85,6 +85,15 @@ done
 # Perform Validation
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
+export MIN_CPUS=2
+export CPU_COUNT=$(grep -c "^processor" /proc/cpuinfo)
+if [ $CPU_COUNT -lt $MIN_CPUS ]; then
+    echo -e "\e[31mError:\e[0m The system must have at least \e[35m$MIN_CPUS\e[0m CPU's to run Kubernetes."
+    exit 1
+else
+    echo -e "\e[32mInfo:\e[0m The system has \e[35m$CPU_COUNT\e[0m CPU's."
+fi
+
 export PARAM_CHECK_PASS=true
 
 # Try and determine IP address if one is not specified
