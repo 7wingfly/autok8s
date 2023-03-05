@@ -14,7 +14,7 @@
 # 
 export configureTCPIPSetting=false
 export interface="eth0"                                     # Find with 'ip addr'
-export ipAddress=""                                         # Require even if 'configureTCPIPSetting' is set to 'false'.
+export ipAddress=""
 export netmask=""
 export defaultGateway=""
 export dnsServers=("8.8.8.8" "4.4.4.4")                     # Don't specify more than 3. K8s will only use the first three and throw errors.
