@@ -92,8 +92,7 @@ sudo ./setup_master_node.sh \
 Or you can run it straight from GitHub using the `curl` command as follows:
 
 ```
-curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
-    --k8s-load-balancer-ip-range <IP range or CIDR>
+curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- --k8s-load-balancer-ip-range <IP range or CIDR>
 ```
 
 Note that if your server has more than one IP address you will need to specify which IP to use for the Kubernetes Server API
@@ -108,7 +107,7 @@ The installation can take a fairly long time depending on your hardware and inte
 
 Once installation is complete the following message will be shown detailing the command for joining worker nodes to your cluster using the `setup_worker_node.sh` script as well as some other tips and useful infomation.
 
-![complete-message](https://user-images.githubusercontent.com/13077550/222932312-8f162fe3-551e-48f6-8dcd-94a1bd7a5db5.JPG)
+![complete-message](https://user-images.githubusercontent.com/13077550/222972633-63b91c73-e922-486a-9025-9ae78a630175.JPG)
 
 The `setup_worker_node.sh` script also has several parameters you can use to configure the worker nodes as needed. Read the Worker Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/NodeParameters_Worker.md) for details on all available parameters before you begin.
 
