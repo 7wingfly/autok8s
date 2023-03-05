@@ -109,7 +109,7 @@ Example Usage - Remote SMB Server:
 ```
 
 <br>
-Example Usage - No Storage (No CSI drivers will be installed)
+Example Usage - No Storage (No CSI drivers or Storage Classes will be installed)
 
 ```
 ./setup_master_node.sh \  
