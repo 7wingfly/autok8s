@@ -586,7 +586,7 @@ echo -e "\033[36mRun \033[0m\033[35mkubeadm token create --print-join-command\03
 echo -e "\033[36m\nThe Kubernetes node join command is:\n\033[0m\033[35m$JOIN_COMMAND_OUTPUT\033[0m"
 echo -e "\033[36m\nThe Autok8s node join command which uses the setup_worker_node.sh script is:\033[0m\033[35m"
 echo -e "curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_worker_node.sh | sudo bash -s -- \\
-    --k8s-master-ip $JOIN_IP
-    --k8s-master-port $JOIN_PORT
+    --k8s-master-ip $JOIN_IP \\
+    --k8s-master-port $JOIN_PORT \\
     --token $JOIN_TOKEN \\
     --discovery-token-ca-cert-hash $JOIN_CERT_HASH\n"
