@@ -10,7 +10,7 @@ Parameters that have default values but are marked as required can still be ommi
 |--- |--- |--- |--- |--- |
 |`--configure-tcpip`|Set to `true` to configure TCP/IP settings of this server.|`false`|`true`|No|
 |`--interface`|The interface to configure IP settings for.|`eth0`|`ens160`|When `--configure-tcpip` is `true`|
-|`--ip-address`|The IP address to use.||`192.168.0.100`|Yes|
+|`--ip-address`|The IP address to use.||`192.168.0.100`|When `--configure-tcpip` is `true`|
 |`--netmask`|The netmask to use.||`255.255.255.0`|When `--configure-tcpip` is `true`|
 |`--default-gateway`|The default gateway to use.||`192.168.0.1`|When `--configure-tcpip` is `true`|
 |`--dns-servers`|The DNS servers to use.|`"8.8.8.8 4.4.4.4"`|`"192.168.0.2 192.168.0.3"`|No|

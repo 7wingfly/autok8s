@@ -68,6 +68,13 @@ if [[ "$configureTCPIPSetting" == true ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--interface\e[0m is required when \e[35m--configure-tcpip\e[0m is set to \e[35mtrue\e[0m."
     PARAM_CHECK_PASS=false
   fi
+  if [[ -z "$ipAddress" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--ip-address\e[0m is required when \e[35m--configure-tcpip\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  elif [[ ! $ipAddress =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--ip-address\e[0m value \e[35m$ipAddress\e[0m is not a valid IP address."
+    PARAM_CHECK_PASS=false
+  fi
   if [[ -z "$netmask" ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--netmask\e[0m is required when \e[35m--configure-tcpip\e[0m is set to \e[35mtrue\e[0m."
     PARAM_CHECK_PASS=false    
