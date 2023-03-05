@@ -120,7 +120,7 @@ curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_worker_nod
     --discovery-token-ca-cert-hash <ca cert hash> 
 ```
 
-Lastly, run `cat ~/.kube/config` command on the master node, copy your kube config and save to your home directory -> `.kube/config` on your local machine to use `kubectl` or a Kubernetes IDE such as [Lens](https://k8slens.dev/).
+Lastly, run the `cat ~/.kube/config` command on the control-plane node, copy the kube config and save to `.kube/config` under your home directory on your local machine to use `kubectl` or a Kubernetes IDE such as [Lens](https://k8slens.dev/).
 
 ## Links
 
