@@ -25,7 +25,7 @@ Parameters that have default values but are marked as required can still be ommi
 
 ## Notes
 
-The `--token` and `--discovery-token-ca-cert-hash` parameters should be exactly the same output from the `kubeadm join` command. To obtain these values again run `kubeadm token create --print-join-command` on the control-plane (master) node.
+The `--token` and `--discovery-token-ca-cert-hash` parameters should be exactly the same as the output from the `kubeadm join` command. To obtain these values again run `kubeadm token create --print-join-command` on the control-plane (master) node.
 
 ## Parameter Examples
 
