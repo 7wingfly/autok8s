@@ -90,7 +90,7 @@ sudo ./setup_master_node.sh \
     --k8s-load-balancer-ip-range <IP range or CIDR>
 ```
 
-Or you can run it run it straight from GitHub using the `curl` command as follows:
+Or you can run it straight from GitHub using the `curl` command as follows:
 
 ```
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
@@ -100,13 +100,13 @@ curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_nod
 
 The installation can take a fairly long time depending on your hardware and internet speed. Allow for a minimum of 30 minute.
 
-Once the installation is complete the following message will be shown detailing the command for joining woker nodes to your cluster using the `setup_worker_node.sh` script as well as some other tips and useful infomation.
+Once installation is complete the following message will be shown detailing the command for joining worker nodes to your cluster using the `setup_worker_node.sh` script as well as some other tips and useful infomation.
 
 ![complete-message](https://user-images.githubusercontent.com/13077550/222932312-8f162fe3-551e-48f6-8dcd-94a1bd7a5db5.JPG)
 
 The `setup_worker_node.sh` script also has several parameters you can use to configure the worker nodes as needed. Read the Worker Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/NodeParameters_Worker.md) for details on all available parameters before you begin.
 
-As shown eaerlier by the earlier success message, the `setup_worker_node.sh` command can also be ran from GitHub using the `curl` command:
+As shown earlier in the success message, the `setup_worker_node.sh` command can also be ran from GitHub using the `curl` command:
 
 ```
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_worker_node.sh | sudo bash \
