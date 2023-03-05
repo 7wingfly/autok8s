@@ -1,5 +1,7 @@
 # Master Node Parameters
 The following is a list of all available parameters you can use with the `setup_master_node.sh` script. At the bottom are some examples that can help you get started and some notes on things to watch out for when setting some of the parameter values. 
+
+Parameter values which are wraped in quotes must include the quotes when applied.
 <br>
 <br>
 
@@ -82,8 +84,7 @@ Example Usage - Remote NFS Server:
 
 ```
 ./setup_master_node.sh \
-    --ip-address 192.168.0.230 \
-    --dns-servers "192.168.0.30 192.168.0.31 8.8.8.8" \
+    --ip-address 192.168.0.230 \    
     --nfs-install-server true \
     --nfs-server file-server.domain1.local \
     --nfs-default-storage-class true
@@ -94,8 +95,7 @@ Example Usage - Remote SMB Server:
 
 ```
 ./setup_master_node.sh \
-    --ip-address 192.168.0.230 \
-    --dns-servers "192.168.0.30 192.168.0.31 8.8.8.8" \
+    --ip-address 192.168.0.230 \    
     --smb-install-server true \
     --smb-server file-server.domain1.local \
     --smb-share-name pvcs \

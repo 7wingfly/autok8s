@@ -6,7 +6,7 @@ The primary target audience is anyone looking to try out Kubernetes for the firs
 
 Unlike managed Kubernetes services such as EKS, AKS or GKE, the control-plane (master) node is not abstracted away from you and is something that you have to setup yourself. There are plenty of great articles out there on how to do this, but the process is not arbitrary. It can take a long time to get working and involves quite a bit of manual work. 
 
-This project aims to fully automate the installation and configuration of a Kubernetes control-plane node and the worker nodes (script to be added soon), and adds Helm charts for the load balancer, persistent storage, etc, once Kubernetes is istalled.
+This project aims to fully automate the installation and configuration of a Kubernetes control-plane node and the worker nodes, and adds Helm charts for the load balancer, persistent storage, etc, once Kubernetes is istalled.
 
 In short, the idea of Autok8s is to run a script, wait 30ish minutes, and have a fully functional and ready to go Kubernetes cluster, just as you would have in the cloud.
 
@@ -18,7 +18,9 @@ This project is very early days and thus far has only been tested on a fresh ins
 
 ## What Does This Do?
 
-Here's a high-level overview of the steps `setup_aks_master.sh` will perform:
+### Master (Control-Plane) Node Script:
+
+Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
 - Configure TCP/IP settings including DNS servers and search domains. (Optional. Added for convenience and time saving).
 
@@ -48,9 +50,25 @@ Here's a high-level overview of the steps `setup_aks_master.sh` will perform:
 
 - Installs MetalLB (For use with home or on-premis networks. Requires that you reserve a range of IP addresses on your local network to be used by Kubernetes service objects).
 
-- Prints a friendly success message at the end with tips on how to connect to your cluster and how to add worker nodes.
+- Prints a message containing the command and parameters for joining a node to the cluster using the AutoK8s `setup_worker_node.sh` script.
 
 Once your master node is up and running you can use the manifests found in the [TestManifests/Storage](https://github.com/7wingfly/autok8s/tree/main/TestManifests/Storage) directory to test out NFS and SMB and storage. In the near future other manifests will be added for things like networking.
+
+### Worker Node Script:
+
+Here's a high-level overview of the steps `setup_worker_node.sh` will perform:
+
+- Configure TCP/IP settings including DNS servers and search domains. (Optional. Added for convenience and time saving).
+
+- Installs prerequisite packages such as `apt-transport-https`, `ca-certificates`, etc.  
+
+- Adds Docker and Kubernetes repositories.
+
+- Installs Docker CE and containerd, then applies required configuration for Kubernetes.
+
+- Installs Kubernetes packages
+
+- Joins the Kubernetes cluster using the `kubeadm` 
 
 ## Getting Ready!
 
@@ -60,7 +78,7 @@ If you run this on a VM and have the ability to take a snapshot before you start
 
 There a quite a few paramters you can pass into the script. At the very least you will need to provide an IP address for the server and the IP range for the load balancer. Both the static IP for the node(s) and the IP range for the load-balancer should be outside of your DHCP scope, or alternatively DHCP reservations should be made to ensure you do not have IP address conflicts between the [services](https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer) in Kubernetes and other devices on your local network.
 
-You should read he Master Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/MasterNodeParameters.md) for details on all available parameters before you begin.
+It's recommended to read the Master Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/NodeParameters_Master.md) for details on all available parameters before you begin.
 
 ## Go Time!
 You can run the `setup_master_node.sh` script in one of two ways. Download/copy & paste the script directly from [here](https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh), give it execute permissions and run it as `sudo`.
@@ -68,25 +86,36 @@ You can run the `setup_master_node.sh` script in one of two ways. Download/copy 
 ```
 sudo chmod +x ./setup_master_node.sh
 sudo ./setup_master_node.sh \
-    --ip-address 192.168.0.10 \
-    --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
+    --ip-address <master node IP> \
+    --k8s-load-balancer-ip-range <IP range or CIDR>
 ```
 
 Or you can run it run it straight from GitHub using the `curl` command as follows:
 
 ```
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
-    --ip-address 192.168.0.10 \
-    --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
+    --ip-address <master node IP> \
+    --k8s-load-balancer-ip-range <IP range or CIDR>
 ```
 
-The installation can take a fairly long time depending on your hardware and internet speed. Allow for a minimum of 30 minutes, but your milage may vary.
+The installation can take a fairly long time depending on your hardware and internet speed. Allow for a minimum of 30 minute.
 
-Once the installation is complete the following message will be shown detailing the command for joining woker nodes to your cluster as well as some other tips and infomation.
+Once the installation is complete the following message will be shown detailing the command for joining woker nodes to your cluster using the `setup_worker_node.sh` script as well as some other tips and useful infomation.
 
-![complete-message](https://user-images.githubusercontent.com/13077550/222903364-967f1c24-f1cb-435c-b136-179a4d123764.JPG)
+![complete-message](https://user-images.githubusercontent.com/13077550/222932312-8f162fe3-551e-48f6-8dcd-94a1bd7a5db5.JPG)
 
-As the message suggests you can use the `cat ~/.kube/config` command copy your kube config and paste it to your local machine to use with `kubectl` or a Kubernetes IDE such as [Lens](https://k8slens.dev/).
+The `setup_worker_node.sh` script also has several parameters you can use to configure the worker nodes as needed. Read the Worker Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/NodeParameters_Worker.md) for details on all available parameters before you begin.
+
+As shown eaerlier by the earlier success message, the `setup_worker_node.sh` command can also be ran from GitHub using the `curl` command:
+
+```
+curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_worker_node.sh | sudo bash \
+    --k8s-master-ip <master node IP> \    
+    --token <token> \
+    --discovery-token-ca-cert-hash <ca cert hash> 
+```
+
+Lastly, run `cat ~/.kube/config` command on the master node, copy your kube config and save to your home directory -> `.kube/config` on your local machine to use `kubectl` or a Kubernetes IDE such as [Lens](https://k8slens.dev/).
 
 ## Links
 
