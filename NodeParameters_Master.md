@@ -9,7 +9,7 @@ Parameter values which are wraped in quotes must include the quotes when applied
 |--- |--- |--- |--- |--- |
 |`--configure-tcpip`|Set to `true` to configure TCP/IP settings of this server.|`false`|`true`|No|
 |`--interface`|The interface to configure IP settings for.|`eth0`|`ens160`|When `--configure-tcpip` is `true`|
-|`--ip-address`|The IP address to use.||`192.168.0.100`|Yes|
+|`--ip-address`|The IP address to use. Also used for the Kubernetes API.||`192.168.0.100`|When `--configure-tcpip` is `true` or when there is more than one IP address found.|
 |`--netmask`|The netmask to use.||`255.255.255.0`|When `--configure-tcpip` is `true`|
 |`--default-gateway`|The default gateway to use.||`192.168.0.1`|When `--configure-tcpip` is `true`|
 |`--dns-servers`|The DNS servers to use.|`"8.8.8.8 4.4.4.4"`|`"192.168.0.2 192.168.0.3"`|No|
@@ -60,6 +60,12 @@ Example Usage - Minimum Required:
 
 ```
 ./setup_master_node.sh \
+    --dns-servers "192.168.0.30 192.168.0.31 8.8.8.8"
+```
+<p style="width=100%; text-align: center; font-style: italic">Or if your server has more than one IP address</p>
+
+```
+./setup_master_node.sh \
     --ip-address 192.168.0.230 \
     --dns-servers "192.168.0.30 192.168.0.31 8.8.8.8"
 ```
@@ -83,9 +89,8 @@ Example Usage - TCP/IP Setup:
 Example Usage - Remote NFS Server:
 
 ```
-./setup_master_node.sh \
-    --ip-address 192.168.0.230 \    
-    --nfs-install-server true \
+./setup_master_node.sh \  
+    --nfs-install-server false \
     --nfs-server file-server.domain1.local \
     --nfs-default-storage-class true
 ```
@@ -95,13 +100,21 @@ Example Usage - Remote SMB Server:
 
 ```
 ./setup_master_node.sh \
-    --ip-address 192.168.0.230 \    
-    --smb-install-server true \
+    --smb-install-server false \
     --smb-server file-server.domain1.local \
     --smb-share-name pvcs \
     --smb-username user \
     --smb-password pass \
     --smb-default-storage-class true
+```
+
+<br>
+Example Usage - No Storage (No CSI drivers will be installed)
+
+```
+./setup_master_node.sh \  
+    --nfs-install-server false \
+    --smb-install-server false \
 ```
 
 <br>

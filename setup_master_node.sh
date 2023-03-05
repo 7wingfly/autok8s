@@ -87,6 +87,27 @@ done
 
 export PARAM_CHECK_PASS=true
 
+# Try and determine IP address if one is not specified
+
+if [[ "$configureTCPIPSetting" == false ]]; then
+  if [[ -z "$ipAddress" ]]; then
+    eth_adapters=$(ip link | grep "state UP" | grep -v "lo:" | awk -F': ' '{print $2}')
+    num_eth_adapters=$(echo $eth_adapters | wc -w)
+    if [ $num_eth_adapters -eq 1 ]; then
+        interface=$(echo $eth_adapters)
+        export CIDR=$(ip addr show $eth_adapters | grep -E "inet .* $eth_adapters" | awk '{print $2}')
+        ipAddress=$(echo $CIDR | cut -d "/" -f 1)
+        echo -e "\e[32mInfo:\e[0m Discovered IP address \e[35m$ipAddress\e[0m on interface \e[35m$interface\e[0m. This will be used for the Kubernetes server API advertise IP address."        
+    else
+        echo -e "\e[31mError:\e[0m This machine has more than one IP address. \e[35m--ip-address\e[0m is required."
+        PARAM_CHECK_PASS=false
+    fi  
+  elif [[ ! -z "$ipAddress" && ! $ipAddress =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--ip-address\e[0m value \e[35m$ipAddress\e[0m is not a valid IP address."
+    PARAM_CHECK_PASS=false
+  fi
+fi
+
 if [[ ! "$configureTCPIPSetting" =~ ^(true|false)$ ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--configure-tcpip\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
   PARAM_CHECK_PASS=false
@@ -104,25 +125,16 @@ if [[ ! "$smbInstallServer" =~ ^(true|false)$ ]]; then
   PARAM_CHECK_PASS=false
 fi
 
-if [[ -z "$ipAddress" ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--ip-address\e[0m is required."
-  PARAM_CHECK_PASS=false
-elif [[ ! $ipAddress =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--ip-address\e[0m value \e[35m$ipAddress\e[0m is not a valid IP address."
-  PARAM_CHECK_PASS=false
-fi
-
-if [[ -z "$k8sLoadBalancerIPRange" ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--k8s-load-balancer-ip-range\e[0m is required. Must be a valid IP range or CIDR."
-  PARAM_CHECK_PASS=false
-elif [[ ! "$k8sLoadBalancerIPRange" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}-([0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+$ ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--k8s-load-balancer-ip-range\e[0m range must be a valid IP range or CIDR."
-  PARAM_CHECK_PASS=false
-fi
-
 if [[ "$configureTCPIPSetting" == true ]]; then
   if [[ -z "$interface" ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--interface\e[0m is required when \e[35m--configure-tcpip\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$ipAddress" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--ip-address\e[0m is required when \e[35m--configure-tcpip\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  elif [[ ! $ipAddress =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--ip-address\e[0m value \e[35m$ipAddress\e[0m is not a valid IP address."
     PARAM_CHECK_PASS=false
   fi
   if [[ -z "$netmask" ]]; then
@@ -148,6 +160,14 @@ if [[ "$configureTCPIPSetting" == true ]]; then
         PARAM_CHECK_PASS=false
     fi
   done
+fi
+
+if [[ -z "$k8sLoadBalancerIPRange" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-load-balancer-ip-range\e[0m is required. Must be a valid IP range or CIDR."
+  PARAM_CHECK_PASS=false
+elif [[ ! "$k8sLoadBalancerIPRange" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}-([0-9]{1,3}\.){3}[0-9]{1,3}$|^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-load-balancer-ip-range\e[0m range must be a valid IP range or CIDR."
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ ! "$nfsInstallServer" =~ ^(true|false)$ ]]; then
@@ -566,7 +586,7 @@ echo -e "\033[36mRun \033[0m\033[35mkubeadm token create --print-join-command\03
 echo -e "\033[36m\nThe Kubernetes node join command is:\n\033[0m\033[35m$JOIN_COMMAND_OUTPUT\033[0m"
 echo -e "\033[36m\nThe Autok8s node join command which uses the setup_worker_node.sh script is:\033[0m\033[35m"
 echo -e "curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_worker_node.sh | sudo bash -s -- \\
-    --k8s-master-ip $JOIN_IP
-    --k8s-master-port $JOIN_PORT
+    --k8s-master-ip $JOIN_IP \\
+    --k8s-master-port $JOIN_PORT \\
     --token $JOIN_TOKEN \\
     --discovery-token-ca-cert-hash $JOIN_CERT_HASH\n"

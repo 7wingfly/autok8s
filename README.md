@@ -1,14 +1,14 @@
 # Autok8s (Automatic Kubernetes)
 
-The idea behind this project is to fully automate the installation of a self-hosted Kubernetes cluster on a bare-metal or virtual machine based environment. 
+Autok8s aims to fully automate the installation of self-hosted Kubernetes clusters in a bare-metal or virtual machine based environment. 
 
-The primary target audience is anyone looking to try out Kubernetes for the first time without spending any money, k8s enthusiasts/profesionals that want a cluster at home for free or those who are familiar with cloud offerings such as EKS or AKS but would like to learn more about how Kubernetes works under the hood. This may also help those looking to create an on-premis or entirely spot instance cluster in a professional environment.
+This will be of interest to anyone wanting to try out Kubernetes for the first time without spending any money, k8s enthusiasts/profesionals that want a cluster at home for free, or those who are familiar with cloud offerings such as EKS or AKS but would like to learn more about how Kubernetes works under the hood. This may also help those looking to create an on-premis or entirely spot instance cluster in a professional environment.
 
-Unlike managed Kubernetes services such as EKS, AKS or GKE, the control-plane (master) node is not abstracted away from you and is something that you have to setup yourself. There are plenty of great articles out there on how to do this, but the process is not arbitrary. It can take a long time to get working and involves quite a bit of manual work. 
+In managed Kubernetes services such as EKS, AKS or GKE, the control-plane (master) node is abstracted away from you. For self-hosted clusters though, you have to create the control-plane node yourself. There are plenty of great articles out there on how to do this, but the process is not arbitrary. It can take a long time to get working and involves quite a bit of manual work. 
 
-This project aims to fully automate the installation and configuration of a Kubernetes control-plane node and the worker nodes, and adds Helm charts for the load balancer, persistent storage, etc, once Kubernetes is istalled.
+This project aims to fully automate the installation and configuration of a Kubernetes control-plane node along with the worker nodes with no more than one command per node. It includes manifests and Helm charts for pod networking, a load balancer & persistent storage.
 
-In short, the idea of Autok8s is to run a script, wait 30ish minutes, and have a fully functional and ready to go Kubernetes cluster, just as you would have in the cloud.
+In short, the idea of Autok8s is to run a script, wait 30ish minutes, and have a fully functional, ready to go Kubernetes cluster, just as you would have in the cloud.
 
 ## Future Plans
 
@@ -30,25 +30,25 @@ Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
 - Installs Docker CE and containerd, then applies required configuration for Kubernetes.
 
-- Installs Kubernetes packages
+- Installs Kubernetes packages.
 
-- Initializes Kubernetes with the `kubeadm` command.
+- Initializes Kubernetes with the `kubeadm init` command.
 
 - Creates the `~/.kube/config` files so you can use `kubectl` as soon as its finished.
 
-- Installs Flannel layer 3 networking.
+- Applies Flannel manifests (layer 3 pod networking).
 
-- Installs Helm
+- Installs Helm.
 
-- Installs NFS file server on the host, NFS CSI drivers and adds storage class.
+- Installs NFS file server on the host, NFS CSI drivers via Helm chart, and adds storage class.
 
     (This is entirely optional and not recommended for production use. It's mainly for those that want a working storage solution out of the box).
 
-- Installs SMB file server on the host, SMB CSI drivers and adds storage class.
+- Installs SMB file server on the host, SMB CSI drivers via Helm chart, and adds storage class.
 
     (Again this is optional. You can also specify an existing SMB and/or NFS server to use rather than make the master node a file server).
 
-- Installs MetalLB (For use with home or on-premis networks. Requires that you reserve a range of IP addresses on your local network to be used by Kubernetes service objects).
+- Installs MetalLB via Helm chart (Requires that you reserve a range of IP addresses on your local network to be used by Kubernetes [services](https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer) of type `LoadBalancer`).
 
 - Prints a message containing the command and parameters for joining a node to the cluster using the AutoK8s `setup_worker_node.sh` script.
 
@@ -66,31 +66,36 @@ Here's a high-level overview of the steps `setup_worker_node.sh` will perform:
 
 - Installs Docker CE and containerd, then applies required configuration for Kubernetes.
 
-- Installs Kubernetes packages
+- Installs Kubernetes packages.
 
-- Joins the Kubernetes cluster using the `kubeadm` 
+- Joins the Kubernetes cluster using the `kubeadm join` command.
 
 ## Getting Ready!
 
-It's highly recommended that you run this on a brand new Ubuntu 20.04 virtual machine. When you install the Ubuntu OS and are presented with the list of optional packages to install, DO NOT select docker. This will install the `docker.io` package which is no longer compatible with Kubernetes. This script will install the `docker-ce` package for you instead.
+It's highly recommended that you run this on a brand new Ubuntu 20.04 server virtual machine. When you install the Ubuntu OS and are presented with the list of optional packages to install, **DO NOT** select docker. This will install the `docker.io` package which is no longer compatible with Kubernetes. This script will install the `docker-ce` package for you instead.
 
 If you run this on a VM and have the ability to take a snapshot before you start, it is recommended you do so because if the script fails or if you want to do it again with different options then running the script more than once may have unexpected results. 
 
-There a quite a few paramters you can pass into the script. At the very least you will need to provide an IP address for the server and the IP range for the load balancer. Both the static IP for the node(s) and the IP range for the load-balancer should be outside of your DHCP scope, or alternatively DHCP reservations should be made to ensure you do not have IP address conflicts between the [services](https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer) in Kubernetes and other devices on your local network.
+There a quite a few paramters you can pass into the script. At the very least you will need to provide the IP range for the load balancer. The IP range should be outside of your DHCP scope, or alternatively DHCP reservations should be made to ensure you do not have IP address conflicts between the [services](https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer) in Kubernetes and other devices on your local network.
 
 It's recommended to read the Master Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/NodeParameters_Master.md) for details on all available parameters before you begin.
 
 ## Go Time!
-You can run the `setup_master_node.sh` script in one of two ways. Download/copy & paste the script directly from [here](https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh), give it execute permissions and run it as `sudo`.
+You can run the `setup_master_node.sh` script in one of two ways. Download or copy & paste the script directly from [here](https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh), give it execute permissions and run it as `sudo`.
 
 ```
 sudo chmod +x ./setup_master_node.sh
-sudo ./setup_master_node.sh \
-    --ip-address <master node IP> \
-    --k8s-load-balancer-ip-range <IP range or CIDR>
+sudo ./setup_master_node.sh --k8s-load-balancer-ip-range <IP range or CIDR>
 ```
 
 Or you can run it straight from GitHub using the `curl` command as follows:
+
+```
+curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
+    --k8s-load-balancer-ip-range <IP range or CIDR>
+```
+
+Note that if your server has more than one IP address you will need to specify which to use for the Kubernetes Server API. The script will not proceed if more than one is detected.
 
 ```
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
@@ -98,11 +103,11 @@ curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_nod
     --k8s-load-balancer-ip-range <IP range or CIDR>
 ```
 
-The installation can take a fairly long time depending on your hardware and internet speed. Allow for a minimum of 30 minute.
+The installation can take a fairly long time depending on your hardware and internet speed. Allow for a minimum of 30 minutes.
 
 Once installation is complete the following message will be shown detailing the command for joining worker nodes to your cluster using the `setup_worker_node.sh` script as well as some other tips and useful infomation.
 
-![complete-message](https://user-images.githubusercontent.com/13077550/222932312-8f162fe3-551e-48f6-8dcd-94a1bd7a5db5.JPG)
+![complete-message](https://user-images.githubusercontent.com/13077550/222972633-63b91c73-e922-486a-9025-9ae78a630175.JPG)
 
 The `setup_worker_node.sh` script also has several parameters you can use to configure the worker nodes as needed. Read the Worker Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/NodeParameters_Worker.md) for details on all available parameters before you begin.
 
@@ -115,7 +120,7 @@ curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_worker_nod
     --discovery-token-ca-cert-hash <ca cert hash> 
 ```
 
-Lastly, run `cat ~/.kube/config` command on the master node, copy your kube config and save to your home directory -> `.kube/config` on your local machine to use `kubectl` or a Kubernetes IDE such as [Lens](https://k8slens.dev/).
+Lastly, run the `cat ~/.kube/config` command on the control-plane node, copy the kube config and save to `.kube/config` under your home directory on your local machine to use `kubectl` or a Kubernetes IDE such as [Lens](https://k8slens.dev/).
 
 ## Links
 
