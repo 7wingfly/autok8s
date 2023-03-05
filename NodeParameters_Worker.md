@@ -1,6 +1,8 @@
 # Worker Node Parameters
 The following is a list of all available parameters you can use with the `setup_worker_node.sh` script. At the bottom are some examples that can help you get started and some notes on things to watch out for when setting some of the parameter values. 
 
+Parameter values which are wraped in quotes must include the quotes when applied.
+
 Parameters that have default values but are marked as required can still be ommited from the command line. In this event the default value will be used.
 
 <br>
