@@ -86,11 +86,17 @@ You can run the `setup_master_node.sh` script in one of two ways. Download/copy 
 ```
 sudo chmod +x ./setup_master_node.sh
 sudo ./setup_master_node.sh \
-    --ip-address <master node IP> \
     --k8s-load-balancer-ip-range <IP range or CIDR>
 ```
 
 Or you can run it straight from GitHub using the `curl` command as follows:
+
+```
+curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
+    --k8s-load-balancer-ip-range <IP range or CIDR>
+```
+
+Note that if your server has more than one IP address you will need to specify which IP to use for the Kubernetes Server API
 
 ```
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
