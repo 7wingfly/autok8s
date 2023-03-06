@@ -10,6 +10,10 @@ This project aims to fully automate the installation and configuration of a Kube
 
 In short, the idea of Autok8s is to run a script, wait 30ish minutes, and have a fully functional, ready to go Kubernetes cluster, just as you would have in the cloud.
 
+Here's a video that demonstrates a brand-new 2 node cluster being created in just over 5 minutes.
+
+[![Self-Hosted Kubernetes Cluster in 5 Minutes](https://user-images.githubusercontent.com/13077550/223282256-3fd23787-94a8-4789-bbeb-8e47c8963a7e.png)](https://www.youtube.com/watch?v=KK3W76xrN9E "Self-Hosted Kubernetes Cluster in 5 Minutes")
+
 ## Future Plans
 
 There will be a separate set of scripts for those wanting to make use of the vSphere CPI and CSI drivers, and possibly in the future other drivers or hardware/environments as well. 
