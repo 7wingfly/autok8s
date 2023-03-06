@@ -53,16 +53,39 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+echo -e '\e[35m      _         _        \e[36m _    ___       \e[0m'
+echo -e '\e[35m     / \  _   _| |_ ___  \e[36m| | _( _ ) ___  \e[0m'
+echo -e '\e[35m    / _ \| | | | __/ _ \ \e[36m| |/ / _ \/ __| \e[0m'
+echo -e '\e[35m   / ___ \ |_| | || (_) |\e[36m|   < (_) \__ \ \e[0m'
+echo -e '\e[35m  /_/   \_\__,_|\__\___/ \e[36m|_|\_\___/|___/ \e[0m\n'
+echo -e '\e[35m  Kubernetes Installation Script:\e[36m Worker Node Edition\e[0m\n'
+
 # Perform Validation
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+export HARDWARE_CHECK_PASS=true
 
 export MIN_CPUS=2
 export CPU_COUNT=$(grep -c "^processor" /proc/cpuinfo)
 if [ $CPU_COUNT -lt $MIN_CPUS ]; then
-    echo -e "\e[31mError:\e[0m The system must have at least \e[35m$MIN_CPUS\e[0m CPU's to run Kubernetes."
-    exit 1
+    echo -e "\e[31mError:\e[0m The system must have at least \e[35m$MIN_CPUS\e[0m CPU's to run Kubernetes. You currently have \e[35m${CPU_COUNT}\e[0m."
+    HARDWARE_CHECK_PASS=false
 else
     echo -e "\e[32mInfo:\e[0m The system has \e[35m$CPU_COUNT\e[0m CPU's."
+fi
+
+export MIN_RAM=1700
+export RAM_TOTAL=$(awk '/^MemTotal:/{print $2}' /proc/meminfo)
+export RAM_MB=$((RAM_TOTAL / 1024))
+if [ $RAM_MB -lt $MIN_RAM ]; then
+    echo -e "\e[31mError:\e[0m The system must have at least \e[35m${MIN_RAM} MB\e[0m of memory to run Kubernetes. You currently have \e[35m${RAM_MB} MB\e[0m."
+    HARDWARE_CHECK_PASS=false
+else
+    echo -e "\e[32mInfo:\e[0m The system has \e[35m${RAM_MB} MB\e[0m of memory."
+fi
+
+if [ $HARDWARE_CHECK_PASS == false ]; then
+  exit 1
 fi
 
 export PARAM_CHECK_PASS=true

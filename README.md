@@ -22,6 +22,8 @@ This project is very early days and has only been tested on Ubuntu 20.04 running
 
 Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
+- Performs validation to ensure the hardware meets the minimum requirements and checks that parameter values are valid.
+
 - Configure TCP/IP settings including DNS servers and search domains. (Optional. Added for convenience and time saving).
 
 - Installs prerequisite packages such as `apt-transport-https`, `ca-certificates`, etc.  
@@ -58,6 +60,8 @@ Once your master node is up and running you can use the manifests found in the [
 
 Here's a high-level overview of the steps `setup_worker_node.sh` will perform:
 
+- Performs validation to ensure the hardware meets the minimum requirements and checks that parameter values are valid.
+
 - Configure TCP/IP settings including DNS servers and search domains. (Optional. Added for convenience and time saving).
 
 - Installs prerequisite packages such as `apt-transport-https`, `ca-certificates`, etc.  
@@ -71,6 +75,8 @@ Here's a high-level overview of the steps `setup_worker_node.sh` will perform:
 - Joins the Kubernetes cluster using the `kubeadm join` command.
 
 ## Getting Ready!
+
+The minimum hardware requirements for a Kubernetes node is 2 CPU's and 1,700 MB of RAM. If your hardware does not meet these requirements the Autok8s scripts will not proceed.
 
 It's highly recommended that you run this on a brand new Ubuntu 20.04 server virtual machine. When you install the Ubuntu OS and are presented with the list of optional packages to install, **DO NOT** select docker. This will install the `docker.io` package which is no longer compatible with Kubernetes. This script will install the `docker-ce` package for you instead.
 
