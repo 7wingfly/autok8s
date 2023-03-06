@@ -8,7 +8,7 @@ In managed Kubernetes services such as EKS, AKS or GKE, the control-plane (maste
 
 This project aims to fully automate the installation and configuration of a Kubernetes control-plane node along with the worker nodes with no more than one command per node. It includes manifests and Helm charts for pod networking, a load balancer & persistent storage.
 
-In short, the idea of Autok8s is to run a script, wait 30ish minutes, and have a fully functional, ready to go Kubernetes cluster, just as you would have in the cloud.
+In short, the idea of Autok8s is to run a script, wait a few minutes, and have a fully functional, ready to go Kubernetes cluster, just as you would have in the cloud.
 
 Here's a video that demonstrates a brand-new 2 node cluster being created in just over 5 minutes.
 
@@ -113,7 +113,7 @@ curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_nod
     --k8s-load-balancer-ip-range <IP range or CIDR>
 ```
 
-The installation can take a fairly long time depending on your hardware and internet speed. Allow for a minimum of 30 minutes.
+The installation can take a fairly long time depending on your hardware and internet speed. Allow for around 30 minutes on slower internet connections and/or hardware.
 
 Once installation is complete the following message will be shown detailing the command for joining worker nodes to your cluster using the `setup_worker_node.sh` script as well as some other tips and useful infomation.
 
