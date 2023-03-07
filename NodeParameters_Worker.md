@@ -12,16 +12,16 @@ Parameters that have default values but are marked as required can still be ommi
 |--- |--- |--- |--- |--- |
 |`--configure-tcpip`|Set to `true` to configure TCP/IP settings of this server.|`false`|`true`|No|
 |`--interface`|The interface to configure IP settings for.|`eth0`|`ens160`|When `--configure-tcpip` is `true`|
-|`--ip-address`|The IP address to use.||`192.168.0.100`|When `--configure-tcpip` is `true`|
-|`--netmask`|The netmask to use.||`255.255.255.0`|When `--configure-tcpip` is `true`|
-|`--default-gateway`|The default gateway to use.||`192.168.0.1`|When `--configure-tcpip` is `true`|
+|`--ip-address`|The IP address to use.|-|`192.168.0.100`|When `--configure-tcpip` is `true`|
+|`--netmask`|The netmask to use.|-|`255.255.255.0`|When `--configure-tcpip` is `true`|
+|`--default-gateway`|The default gateway to use.|-|`192.168.0.1`|When `--configure-tcpip` is `true`|
 |`--dns-servers`|The DNS servers to use.|`"8.8.8.8 4.4.4.4"`|`"192.168.0.2 192.168.0.3"`|No|
 |`--dns-search`|The local DNS search domains.|`"domain.local"`|`"example.com domain.internal"`|No|
 |`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.25.0-00`|No|
-|`--k8s-master-ip`|The IP address of the control-plane node.||`192.168.0.10`|Yes|
+|`--k8s-master-ip`|The IP address of the control-plane node.|-|`192.168.0.10`|Yes|
 |`--k8s-master-port`|The Kubernetes API server port on the control-plane node.|`6443`|`6443`|Yes|
-|`--token`|The `token` portion of the `kubeadm join` command.||`kspnlk.7h[..]3f`|Yes|
-|`--discovery-token-ca-cert-hash`|The `discovery-token-ca-cert-hash` portion of the `kubeadm join` command.||`sha256:68d[..]bb2`|Yes|
+|`--token`|The `token` portion of the `kubeadm join` command.|-|`kspnlk.7h[..]3f`|Yes|
+|`--discovery-token-ca-cert-hash`|The `discovery-token-ca-cert-hash` portion of the `kubeadm join` command.|-|`sha256:68d[..]bb2`|Yes|
 
 <br>
 
