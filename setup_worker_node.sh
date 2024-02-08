@@ -288,11 +288,26 @@ systemctl daemon-reload
 systemctl restart docker
 systemctl restart containerd
 
+# Disabling Swap
+
+echo -e "\033[32mDisabling Swapping\033[0m"
+
+if grep -v '^#' /etc/fstab | grep -q swap; then
+  export BACKUP_FSTAB="/etc/fstab.backup.$(date +%s)"
+
+  cp /etc/fstab $BACKUP_FSTAB
+  sed -i '/swap/ s/^/#/' /etc/fstab
+  swapoff -a
+
+  echo "The file /etc/fstab has been backed-up to $BACKUP_FSTAB"
+  echo "Swap is now disabled"
+else
+  echo "Swap is already disabled"
+fi
+
 # Install Kubernetes https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
 
 echo -e "\033[32mInstalling Kubernetes\033[0m"
-
-swapoff -a
 
 if [ $k8sVersion == "latest" ]; then
   apt-get install -qqy kubelet kubeadm kubectl
