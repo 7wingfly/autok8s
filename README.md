@@ -124,8 +124,9 @@ The `setup_worker_node.sh` script also has several parameters you can use to con
 As shown earlier in the success message, the `setup_worker_node.sh` command can also be ran from GitHub using the `curl` command:
 
 ```
-curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_worker_node.sh | sudo bash \
-    --k8s-master-ip <master node IP> \    
+curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_worker_node.sh | sudo bash -s -- \
+    --k8s-master-ip <master node IP> \
+    --k8s-master-port 6443 \
     --token <token> \
     --discovery-token-ca-cert-hash <ca cert hash> 
 ```
