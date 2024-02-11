@@ -18,7 +18,7 @@ export STORAGE_CLASS_NAME_PREFIX="vsphere-csi"
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
-        --vcenter-host) VCENTER_ADDR="$2"; shift; shift;;        
+        --vcenter-host) VCENTER_ADDR="$2"; shift; shift;;
         --vcenter-username) VCENTER_USERNAME="$2"; shift; shift;;
         --vcenter-password) VCENTER_PASSWORD="$2"; shift; shift;;
         --vcenter-insecure) VCENTER_INSECURE="$2"; shift; shift;;
@@ -26,7 +26,7 @@ while [[ $# -gt 0 ]]; do
         --vcenter-datastores) VCENTER_DATASTORES=($2); shift; shift;;
         --vcenter-datastores-delimiter) VCENTER_DATASTORES_DELIMITER=($2); shift; shift;;
         --vsphere-csi-driver-version) VSPHERE_CSI_DRIVER_VERSION="$2"; shift; shift;;
-        --storage-class-name-prefix) STORAGE_CLASS_NAME_PREFIX="$2"; shift; shift;;       
+        --storage-class-name-prefix) STORAGE_CLASS_NAME_PREFIX="$2"; shift; shift;;
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
 done
@@ -159,6 +159,54 @@ export GOVC_USERNAME=$VCENTER_USERNAME
 export GOVC_PASSWORD=$VCENTER_PASSWORD
 export GOVC_INSECURE=$VCENTER_INSECURE
 
+# Check user credentials and permissions
+
+echo -e "\n\033[36mCheck vCenter access\033[0m"
+echo -e "Username: \033[35m$VCENTER_USERNAME\033[0m"
+
+echo "Checking authentication to vCenter ..."
+
+user_credential_check=$(govc about 2>&1)
+
+if [ $? -ne 0 ]; then    
+    if echo "$user_credential_check" | grep -q "incorrect user name or password"; then
+        echo -e "\033[31mERROR: The provided vcenter credentials are incorrect!\033[0m"
+        echo -e "\033[31m       Please check the username and password then try again.\033[0m"                
+    else
+        echo -e "\033[31mERROR: An error occured while checking the credentials!\033[0m"
+        echo -e "\033[31m       $user_credential_check\033[0m"
+    fi
+    exit 1
+else
+    echo -e "\033[32mAuthentication successful!\033[0m"    
+fi
+
+echo "Checking group membership ..."
+
+user_details=$(govc sso.user.id $VCENTER_USERNAME 2>&1)
+
+if [[ $? -eq 0 ]]; then
+    groups=$(echo "$user_details" | grep -oP 'groups=\K[^ ]+')    
+    IFS=',' read -ra group_array <<< "$groups"
+    isadmin=false
+    for group in "${group_array[@]}"; do        
+        if [[ $group == "Administrators" ]]; then
+            isadmin=true
+            break
+        fi
+    done
+    if [[ $isadmin == "true" ]]; then
+        echo -e "\033[32mThe user is in the Administrators group!\033[0m"
+    else
+        echo -e "\033[33mWARNING: The user $VCENTER_USERNAME is not in the Administrators group!\033[0m"
+        echo -e "\033[33m         Make sure that the user account has the required permissions / roles.\033[0m"
+    fi
+else
+    echo -e "\033[33mWARNING: Could not confirm the group membership for user $VCENTER_USERNAME!\033[0m"
+    echo -e "\033[33m         Make sure that the user account has the required permissions / roles.\033[0m"
+    echo -e "\033[33m         $user_details\033[0m"
+fi
+
 echo -e "\n\033[36mUpdate VM settings in vSphere\033[0m"
 
 echo "Searching for my own virtual machine in vSphere"
@@ -206,8 +254,8 @@ helm upgrade --install vsphere-cpi vsphere-cpi/vsphere-cpi \
     --set config.password=$VCENTER_PASSWORD \
     --set config.datacenter=$VCENTER_DATACENTER_NAME
 
-Install VMWare CSI driver Helm chart
-https://docs.vmware.com/en/VMware-vSphere-Container-Storage-Plug-in/3.0/vmware-vsphere-csp-getting-started/GUID-A1982536-F741-4614-A6F2-ADEE21AA4588.html
+# Install VMWare CSI driver Helm chart
+# https://docs.vmware.com/en/VMware-vSphere-Container-Storage-Plug-in/3.0/vmware-vsphere-csp-getting-started/GUID-A1982536-F741-4614-A6F2-ADEE21AA4588.html
 
 echo -e "\n\033[36mInstall VMWare CSI driver\033[0m"
 
