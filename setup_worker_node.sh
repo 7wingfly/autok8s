@@ -247,9 +247,9 @@ fi
 # Add Kubernetes Respository
 
 if [ ! -f /etc/apt/sources.list.d/kubernetes.list ]; then
-  echo -e "\033[32mAdding Google Kubernetes repository\033[0m"
-  curl -fsSLo $KEYRINGS_DIR/kubernetes-archive-keyring.gpg https://dl.k8s.io/apt/doc/apt-key.gpg
-  echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | tee /etc/apt/sources.list.d/kubernetes.list
+  echo -e "\033[32mAdding Kubernetes community repository\033[0m"
+  curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | sudo gpg --dearmor -o $KEYRINGS_DIR/kubernetes-apt-keyring.gpg    
+  echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
 fi
 
 apt-get update -q
