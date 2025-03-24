@@ -1,5 +1,17 @@
 
 ---
+### 1.1.0
+*March 24th 2025*
+
+- Add feature for choosing CNI.
+
+Tested with:
+
+- Ubuntu Server 24.04
+- Kubernetes Version 1.32.3
+
+
+---
 ### 1.0.1
 *March 23th 2025*
 
