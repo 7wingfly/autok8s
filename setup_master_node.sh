@@ -1,4 +1,27 @@
 #!/bin/bash
+set -euo pipefail
+
+echo -e '\e[35m      _         _        \e[36m _    ___       \e[0m'
+echo -e '\e[35m     / \  _   _| |_ ___  \e[36m| | _( _ ) ___  \e[0m'
+echo -e '\e[35m    / _ \| | | | __/ _ \ \e[36m| |/ / _ \/ __| \e[0m'
+echo -e '\e[35m   / ___ \ |_| | || (_) |\e[36m|   < (_) \__ \ \e[0m'
+echo -e '\e[35m  /_/   \_\__,_|\__\___/ \e[36m|_|\_\___/|___/ \e[0m'
+echo -e '\e[35m                 Version:\e[36m 1.0.1\e[0m\n'
+echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
+
+# Check sudo & keep sudo running
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo -e "\033[31mYou must run this script as root\033[0m"
+  exit
+fi
+
+sudo -v
+while true; do  
+  sudo -nv; sleep 1m
+  kill -0 $$ 2>/dev/null || exit
+done &
 
 # Define Variables, Default Values & Parameters 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -27,6 +50,7 @@ export dnsSearch=("domain.local")                           # Your local DNS sea
 export k8sVersion="latest"                                  # You can specify a specific version such as "1.25.0-00".
 export k8sLoadBalancerIPRange=""                            # Either a range such as "192.168.0.100-192.168.0.150" or a CIDR (Add /32 for a single IP).
 export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice however without it MetalLB cannot be deployed until a node is added.
+export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm init command. 
 
 # ------------------------------
 # Kubernetes Storage Classes
@@ -67,6 +91,7 @@ while [[ $# -gt 0 ]]; do
         --k8s-version) k8sVersion="$2"; shift; shift;;
         --k8s-load-balancer-ip-range) k8sLoadBalancerIPRange="$2"; shift; shift;;
         --k8s-allow-master-node-schedule) k8sAllowMasterNodeSchedule="$2"; shift; shift;;
+        --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
         --nfs-install-server) nfsInstallServer="$2"; shift; shift;;
         --nfs-server) nfsServer="$2"; shift; shift;;
         --nfs-share-path) nfsSharePath="$2"; shift; shift;;
@@ -81,13 +106,6 @@ while [[ $# -gt 0 ]]; do
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
 done
-
-echo -e '\e[35m      _         _        \e[36m _    ___       \e[0m'
-echo -e '\e[35m     / \  _   _| |_ ___  \e[36m| | _( _ ) ___  \e[0m'
-echo -e '\e[35m    / _ \| | | | __/ _ \ \e[36m| |/ / _ \/ __| \e[0m'
-echo -e '\e[35m   / ___ \ |_| | || (_) |\e[36m|   < (_) \__ \ \e[0m'
-echo -e '\e[35m  /_/   \_\__,_|\__\___/ \e[36m|_|\_\___/|___/ \e[0m\n'
-echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Perform Validation
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -194,6 +212,11 @@ if [[ "$configureTCPIPSetting" == true ]]; then
   done
 fi
 
+if [[ ! $k8sVersion =~ ^(latest)$|^[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-version\e[0m value \e[35m$k8sVersion\e[0m is not in the correct format."
+    PARAM_CHECK_PASS=false
+fi
+
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--k8s-load-balancer-ip-range\e[0m is required. Must be a valid IP range or CIDR."
   PARAM_CHECK_PASS=false
@@ -272,22 +295,6 @@ fi
 # Install Kubernetes
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
-# Check sudo & keep sudo running
-
-echo -e "\033[32mChecking root access\033[0m"
-
-if [ "$(id -u)" -ne 0 ]
-then
-  echo -e "\033[31mYou must run this script as root\033[0m"
-  exit
-fi
-
-sudo -v
-while true; do  
-  sudo -nv; sleep 1m
-  kill -0 $$ 2>/dev/null || exit
-done &
-
 # Prevent interactive needsrestart command
 
 export NEEDSRESART_CONF="/etc/needrestart/needrestart.conf"
@@ -299,14 +306,16 @@ fi
 
 # Configure IP Settings
 
-if [ $configureTCPIPSetting == true ]; then
+if [ "$configureTCPIPSetting" == true ]; then
 
   echo -e "\033[32mConfiguring Network Settings\033[0m"
 
   IFS=. read -r i1 i2 i3 i4 <<< "$ipAddress"
   IFS=. read -r m1 m2 m3 m4 <<< "$netmask"
 
-  cidr=$(echo "obase=2; $(( (m1 << 24) + (m2 << 16) + (m3 << 8) + m4 ))" | bc | tr -d '\n' | sed 's/0*$//' | wc -c)
+  maskDec=$(( (m1 * 16777216) + (m2 * 65536) + (m3 * 256) + m4 ))
+  maskBin=$(echo "obase=2; $maskDec" | bc)
+  cidr=$(echo "$maskBin" | tr -d '\n' | sed 's/0*$//' | wc -c)
 
   cat <<EOF | tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
@@ -320,16 +329,18 @@ network:
       - to: default
         via: $defaultGateway
       nameservers:
-        search: [$(echo "${dnsSearch[@]}" | tr ' ' ',')]          
+        search: [$(echo "${dnsSearch[@]}" | tr ' ' ',')]
         addresses: [$(echo "${dnsServers[@]}" | tr ' ' ',')]
 EOF
 
   netplan apply
 fi
 
-# Install Prerequsites 
+# Install Prerequsite Packages
 
 echo -e "\033[32mInstalling prerequisites\033[0m"
+
+sleep 1 # Sleep for a second in case of file locks
 
 apt-get update -q
 apt-get install -qqy apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
@@ -349,21 +360,15 @@ if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
     $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 fi
 
-# Add Kubernetes Respository
-
-if [ ! -f /etc/apt/sources.list.d/kubernetes.list ]; then
-  echo -e "\033[32mAdding Kubernetes community repository\033[0m"
-  curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | sudo gpg --dearmor -o $KEYRINGS_DIR/kubernetes-apt-keyring.gpg    
-  echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
-fi
-
-apt-get update -q
-
 # Install Docker https://docs.docker.com/engine/install/ubuntu/
 
 echo -e "\033[32mInstalling Docker\033[0m"
 
+sleep 1 # Sleep for a second in case of file locks
+
+apt-get update -q
 apt-get install -qqy docker-ce docker-ce-cli containerd.io
+
 tee /etc/docker/daemon.json >/dev/null <<EOF
 {
   "exec-opts": ["native.cgroupdriver=systemd"],
@@ -393,6 +398,62 @@ systemctl daemon-reload
 systemctl restart docker
 systemctl restart containerd
 
+# Install Kubernetes https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+
+echo -e "\033[32mInstalling Kubernetes\033[0m"
+
+# Discover latest kubernetes version
+
+export K8S_LATEST_VERSION=$(curl -s https://api.github.com/repos/kubernetes/kubernetes/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
+
+if [ $k8sVersion == "latest" ]; then
+  k8sVersion=$K8S_LATEST_VERSION
+  echo "Detected latest Kubernetes version: $k8sVersion"
+fi
+
+export K8S_REPO_VERSION="v$(echo "$k8sVersion" | cut -d. -f1,2)"
+
+echo "Using APT repo: $K8S_REPO_VERSION"
+
+# Add Kubernetes Respository
+
+if [ -f /etc/apt/sources.list.d/kubernetes.list ]; then
+  rm $KEYRINGS_DIR/kubernetes-apt-keyring.gpg
+  rm /etc/apt/sources.list.d/kubernetes.list
+fi
+
+echo -e "\033[32mAdding Kubernetes community repository\033[0m"
+curl -fsSL https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/Release.key | gpg --dearmor -o $KEYRINGS_DIR/kubernetes-apt-keyring.gpg    
+echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+
+sleep 1 # Sleep for a second in case of file locks
+
+apt-get update -q
+apt-get install -qqy kubelet kubeadm kubectl
+
+# Configuring Prerequisite
+
+echo -e "\033[32mEnable IPv4 packet forwarding\033[0m"
+
+cat <<EOF | tee /etc/modules-load.d/k8s.conf
+overlay
+br_netfilter
+EOF
+
+modprobe overlay
+modprobe br_netfilter
+
+# Some of this config was required for older versions of Kubernetes.
+# See here: https://v1-28.docs.kubernetes.io/docs/setup/production-environment/container-runtimes/
+
+cat <<EOF | tee /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+EOF
+
+sysctl --system
+
 # Disabling Swap
 
 echo -e "\033[32mDisabling Swapping\033[0m"
@@ -410,41 +471,11 @@ else
   echo "Swap is already disabled"
 fi
 
-# Install Kubernetes https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
-
-echo -e "\033[32mInstalling Kubernetes\033[0m"
-
-if [ $k8sVersion == "latest" ]; then
-  apt-get install -qqy kubelet kubeadm kubectl
-else
-  apt-get install -qqy kubelet=$k8sVersion kubeadm=$k8sVersion kubectl=$k8sVersion
-fi
-
-# Configuring Prerequisite https://v1-29.docs.kubernetes.io/docs/setup/production-environment/container-runtimes/
-
-echo -e "\033[32mConfiguring Prerequisites\033[0m"
-
-cat <<EOF | tee /etc/modules-load.d/k8s.conf
-overlay
-br_netfilter
-EOF
-
-modprobe overlay
-modprobe br_netfilter
-
-cat <<EOF | tee /etc/sysctl.d/k8s.conf
-net.bridge.bridge-nf-call-iptables  = 1
-net.bridge.bridge-nf-call-ip6tables = 1
-net.ipv4.ip_forward                 = 1
-EOF
-
-sysctl --system
-
 # Init Kubernetes https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
 
-kubeadm init --apiserver-advertise-address=$ipAddress --pod-network-cidr=10.244.0.0/16
+kubeadm init --apiserver-advertise-address=$ipAddress --pod-network-cidr=10.244.0.0/16 $k8sKubeadmOptions
 
 # Setup kube config files.
 
@@ -452,12 +483,12 @@ echo -e "\033[32mSetting up kubectl config files\033[0m"
 
 # Setup root user kubectl config file
 mkdir -p $HOME/.kube
-cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+cp -f /etc/kubernetes/admin.conf $HOME/.kube/config
 chown $(id -u):$(id -g) $HOME/.kube/config
 
 # Setup your user kubectl config file
 mkdir -p /home/$SUDO_USER/.kube
-cp -in /etc/kubernetes/admin.conf /home/$SUDO_USER/.kube/config 
+cp -f /etc/kubernetes/admin.conf /home/$SUDO_USER/.kube/config 
 chown $SUDO_USER /home/$SUDO_USER/.kube/config
 
 # Install Flannel networking (Kubernetes internal networking) https://github.com/flannel-io/flannel/#readme
@@ -604,9 +635,9 @@ fi
 if [ $k8sAllowMasterNodeSchedule == true ]; then
   echo -e "\033[32mInstall and Configure Metal LB\033[0m"
 
-  kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule-
-  kubectl taint node $HOSTNAME node-role.kubernetes.io/master:NoSchedule- # for older versions  
-  kubectl create namespace metallb-system
+  kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule- || true
+  kubectl taint node $HOSTNAME node-role.kubernetes.io/master:NoSchedule- || true # for older versions
+  kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb
   helm repo update
   helm upgrade -i metallb metallb/metallb -n metallb-system --wait

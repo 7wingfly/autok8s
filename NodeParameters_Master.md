@@ -17,6 +17,7 @@ Parameter values which are wraped in quotes must include the quotes when applied
 |`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.25.0-00`|No|
 |`--k8s-load-balancer-ip-range`|The IP range or CIDR for Kubernetes load balancer.|-|`192.168.0.10-192.168.0.15`<br>or<br>`192.168.0.1/24`|No|
 |`--k8s-allow-master-node-schedule`|Set to `true` to allow master node to schedule pods.|`true`|`false`|No|
+|`--k8s-kubeadm-options`|Additional options to pass into the `kubeadm init` command.|-|`"--ignore-preflight-errors=all"`|No|
 |`--nfs-install-server`|Set to `true` to install NFS server.|`true`|`false`|No|
 |`--nfs-server`|The NFS server to use.|`$HOSTNAME`|`192.168.0.100`|When `--nfs-install-server` is `true`|
 |`--nfs-share-path`|The NFS share path to use.|`/shares/nfs`|`/mnt/nfs`|When `--nfs-install-server` is `true`|
@@ -60,14 +61,14 @@ Example Usage - Minimum Required:
 
 ```
 ./setup_master_node.sh \
-    --dns-servers "192.168.0.30 192.168.0.31 8.8.8.8"
+    --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
 ```
 <p style="width=100%; text-align: center; font-style: italic">Or if your server has more than one IP address</p>
 
 ```
 ./setup_master_node.sh \
     --ip-address 192.168.0.230 \
-    --dns-servers "192.168.0.30 192.168.0.31 8.8.8.8"
+    --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
 ```
 
 <br>
@@ -118,6 +119,15 @@ Example Usage - No Storage (No CSI drivers or Storage Classes will be installed)
 ```
 
 <br>
+Example Usage - Additional kubeadm init options
+
+```
+./setup_master_node.sh \  
+    --k8s-kubeadm-options "--ignore-preflight-errors=all" 
+```
+> Available options for `kubeadm init` [here](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/). <br> **Do not** include `--apiserver-advertise-address` or `--pod-network-cidr` as these are already set in the script.
+
+<br>
 Example Usage - All:
 
 ```
@@ -132,6 +142,7 @@ Example Usage - All:
     --k8s-version 1.26.0-00 \
     --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29 \
     --k8s-allow-master-node-schedule true \
+    --k8s-kubeadm-options "--ignore-preflight-errors=all" \
     --nfs-install-server true \
     --nfs-server srv-k8s-master.domain1.local \
     --nfs-share-path /some/path/nfs \
