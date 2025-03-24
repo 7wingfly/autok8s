@@ -367,7 +367,7 @@ echo -e "\033[32mInstalling Docker\033[0m"
 sleep 1 # Sleep for a second in case of file locks
 
 apt-get update -q
-apt-get install -qqy docker-ce docker-ce-cli containerd.io
+apt-get install -qqy docker-ce docker-ce-cli
 
 tee /etc/docker/daemon.json >/dev/null <<EOF
 {
