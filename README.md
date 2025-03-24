@@ -14,12 +14,6 @@ Here's a video that demonstrates a brand-new 2 node cluster being created in jus
 
 [![Self-Hosted Kubernetes Cluster in 5 Minutes](https://user-images.githubusercontent.com/13077550/223282256-3fd23787-94a8-4789-bbeb-8e47c8963a7e.png)](https://www.youtube.com/watch?v=KK3W76xrN9E "Self-Hosted Kubernetes Cluster in 5 Minutes")
 
-## Future Plans
-
-There will be a separate set of scripts for those wanting to make use of the vSphere CPI and CSI drivers, and possibly in the future other drivers or hardware/environments as well. 
-
-This project is very early days and has only been tested on Ubuntu 20.04 running on VMware ESXi (without the CPI and CSI drivers) and Hyper-V. In future more testing will be performed to ensure it works as expected in other environment. If you do use this in a different environment, please let me know your findings and feel free to create pull requests if you discover any issues and find fixes for them.
-
 ## What Does This Do?
 
 ### Master (Control-Plane) Node Script:
@@ -37,6 +31,8 @@ Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 - Installs Docker CE and containerd, then applies required configuration for Kubernetes.
 
 - Installs Kubernetes packages.
+
+- Configures prerequisites such as disabling swap and enabling IPv4 packet forwarding
 
 - Initializes Kubernetes with the `kubeadm init` command.
 
@@ -75,6 +71,8 @@ Here's a high-level overview of the steps `setup_worker_node.sh` will perform:
 - Installs Docker CE and containerd, then applies required configuration for Kubernetes.
 
 - Installs Kubernetes packages.
+
+- Configures prerequisites such as disabling swap and enabling IPv4 packet forwarding
 
 - Joins the Kubernetes cluster using the `kubeadm join` command.
 
