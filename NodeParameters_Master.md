@@ -129,6 +129,15 @@ Example Usage - Additional kubeadm init options
 > Available options for `kubeadm init` [here](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/). <br> **Do not** include `--apiserver-advertise-address` or `--pod-network-cidr` as these are already set in the script.
 
 <br>
+Example Usage - Kubernetes CNI
+
+```
+./setup_master_node.sh \  
+    --k8s-cni flannel
+```
+> Currently the only options are `flannel` and `none`. If you choose `none`, MetalLB will also be skipped, and your control-plane node will be in a `NotReady` state until you install your own CNI.
+
+<br>
 Example Usage - All:
 
 ```
@@ -142,7 +151,7 @@ Example Usage - All:
     --dns-search "domain1.local domain2.local" \
     --k8s-version 1.26.0-00 \
     --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29 \
-    --k8s-cni "flannel" \
+    --k8s-cni flannel \
     --k8s-allow-master-node-schedule true \
     --k8s-kubeadm-options "--ignore-preflight-errors=all" \
     --nfs-install-server true \
