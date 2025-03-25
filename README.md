@@ -38,7 +38,7 @@ Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
 - Creates the `~/.kube/config` files so you can use `kubectl` as soon as its finished.
 
-- Applies Flannel manifests (layer 3 pod networking).
+- Installs Flannel CNI. (Can be disabled with `--k8s-cni none`)
 
 - Installs Helm.
 
