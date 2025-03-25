@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___  \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / _ \| | | | __/ _ \ \e[36m| |/ / _ \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | || (_) |\e[36m|   < (_) \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/ \e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                 Version:\e[36m 1.0.1\e[0m\n'
+echo -e '\e[35m                 Version:\e[36m 1.1.0\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Worker Node Edition\e[0m\n'
 
 # Check sudo & keep sudo running

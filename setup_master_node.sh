@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___  \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / _ \| | | | __/ _ \ \e[36m| |/ / _ \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | || (_) |\e[36m|   < (_) \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/ \e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                 Version:\e[36m 1.0.1\e[0m\n'
+echo -e '\e[35m                 Version:\e[36m 1.1.0\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -49,6 +49,7 @@ export dnsSearch=("domain.local")                           # Your local DNS sea
 #
 export k8sVersion="latest"                                  # You can specify a specific version such as "1.25.0-00".
 export k8sLoadBalancerIPRange=""                            # Either a range such as "192.168.0.100-192.168.0.150" or a CIDR (Add /32 for a single IP).
+export k8sCNI="flannel"                                     # Choose a Kubernetes network plugin.
 export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice however without it MetalLB cannot be deployed until a node is added.
 export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm init command. 
 
@@ -90,6 +91,7 @@ while [[ $# -gt 0 ]]; do
         --dns-search) dnsSearch=($2); shift; shift;;
         --k8s-version) k8sVersion="$2"; shift; shift;;
         --k8s-load-balancer-ip-range) k8sLoadBalancerIPRange="$2"; shift; shift;;
+        --k8s-cni) k8sCNI="$2"; shift; shift;;
         --k8s-allow-master-node-schedule) k8sAllowMasterNodeSchedule="$2"; shift; shift;;
         --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
         --nfs-install-server) nfsInstallServer="$2"; shift; shift;;
@@ -217,6 +219,11 @@ if [[ ! $k8sVersion =~ ^(latest)$|^[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
     PARAM_CHECK_PASS=false
 fi
 
+if [[ ! $k8sCNI =~ ^(flannel|none)$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-cni\e[0m value \e[35m$k8sVersion\e[0m is not valid. Options are: flannel, none."
+    PARAM_CHECK_PASS=false
+fi
+
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--k8s-load-balancer-ip-range\e[0m is required. Must be a valid IP range or CIDR."
   PARAM_CHECK_PASS=false
@@ -290,6 +297,11 @@ fi
 
 if [ $PARAM_CHECK_PASS == false ]; then
   exit 1
+fi
+
+if [ $k8sCNI == "none" ]; then
+  echo -e "\033[33mWarning:\033[0m You have chosen not to install a CNI. Your master node will not be in a 'ready' state until you install one."
+  sleep 10
 fi
 
 # Install Kubernetes
@@ -491,14 +503,17 @@ mkdir -p /home/$SUDO_USER/.kube
 cp -f /etc/kubernetes/admin.conf /home/$SUDO_USER/.kube/config 
 chown $SUDO_USER /home/$SUDO_USER/.kube/config
 
-# Install Flannel networking (Kubernetes internal networking) https://github.com/flannel-io/flannel/#readme
+# Install a CNI
 
-echo -e "\033[32mInstalling Flannel Networking\033[0m"
+if [ $k8sCNI == "flannel" ]; then
+  # Flannel https://github.com/flannel-io/flannel/#readme
 
-sysctl net.bridge.bridge-nf-call-iptables=1
-sysctl -p
-kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml --wait --timeout=2m
-kubectl get nodes
+  echo -e "\033[32mInstalling Flannel Networking\033[0m"
+
+  sysctl net.bridge.bridge-nf-call-iptables=1
+  sysctl -p
+  kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml --wait --timeout=2m
+fi
 
 # Install Helm
 
@@ -630,10 +645,10 @@ EOF
   rm $SMB_STORAGE_CLASS_FILE
 fi
 
-# Install Metal LB https://metallb.universe.tf/installation/
+# Install MetalLB https://metallb.universe.tf/installation/
 
-if [ $k8sAllowMasterNodeSchedule == true ]; then
-  echo -e "\033[32mInstall and Configure Metal LB\033[0m"
+if [ $k8sAllowMasterNodeSchedule == true && $k8sCNI != "none" ]; then
+  echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
   kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule- || true
   kubectl taint node $HOSTNAME node-role.kubernetes.io/master:NoSchedule- || true # for older versions
