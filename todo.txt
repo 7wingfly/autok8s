@@ -1,0 +1,2 @@
+- Check if CSI_CNI_ANNOTATIONS causes error when using flannel
+- Skip installing Cilium if already installed

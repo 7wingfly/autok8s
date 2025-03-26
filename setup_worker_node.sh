@@ -1,12 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-echo -e '\e[35m      _         _        \e[36m _    ___       \e[0m'
-echo -e '\e[35m     / \  _   _| |_ ___  \e[36m| | _( _ ) ___  \e[0m'
-echo -e '\e[35m    / _ \| | | | __/ _ \ \e[36m| |/ / _ \/ __| \e[0m'
-echo -e '\e[35m   / ___ \ |_| | || (_) |\e[36m|   < (_) \__ \ \e[0m'
-echo -e '\e[35m  /_/   \_\__,_|\__\___/ \e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                 Version:\e[36m 1.1.0\e[0m\n'
+echo -e '\e[35m      _         _       \e[36m _    ___       \e[0m'
+echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
+echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
+echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
+echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
+echo -e '\e[35m                Version:\e[36m 1.1.1\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Worker Node Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -83,6 +83,7 @@ done
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 export HARDWARE_CHECK_PASS=true
+export PARAM_CHECK_WARN=false
 
 export MIN_CPUS=2
 export CPU_COUNT=$(grep -c "^processor" /proc/cpuinfo)
@@ -142,6 +143,7 @@ if [[ "$configureTCPIPSetting" == true ]]; then
   fi
   if [[ "${#dnsServers[@]}" -gt 3 ]]; then
     echo -e "\e[33mWarning:\e[0m Number of DNS servers should not be greater than 3. Kubernetes may display errors but will continue to work."
+    PARAM_CHECK_WARN=true
   fi
   for ip in "${dnsServers[@]}"; do
     if [[ ! $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
@@ -186,6 +188,10 @@ fi
 
 if [ $PARAM_CHECK_PASS == false ]; then
   exit 1
+fi
+
+if [ $PARAM_CHECK_WARN == true ]; then
+  sleep 10
 fi
 
 # Install Kubernetes

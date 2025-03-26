@@ -1,5 +1,19 @@
 
 ---
+### 1.1.1
+*March 26th 2025*
+
+- Add feature for installing Cilium CNI.
+- Refactor control-plane node taint removal steps.
+- Add 10 second sleep after any warning message.
+- Fun improvements to splash screen.
+
+Tested with:
+
+- Ubuntu Server 24.04
+- Kubernetes Version 1.32.3
+
+---
 ### 1.1.0
 *March 24th 2025*
 
@@ -9,7 +23,6 @@ Tested with:
 
 - Ubuntu Server 24.04
 - Kubernetes Version 1.32.3
-
 
 ---
 ### 1.0.1

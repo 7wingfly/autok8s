@@ -38,7 +38,7 @@ Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
 - Creates the `~/.kube/config` files so you can use `kubectl` as soon as its finished.
 
-- Installs Flannel CNI. (Can be disabled with `--k8s-cni none`)
+- Installs a CNI (You can choose between `flannel` (default), `cilium`, or `none` if you want to install your own later)
 
 - Installs Helm.
 
