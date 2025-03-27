@@ -537,9 +537,9 @@ elif [ $k8sCNI == "cilium" ]; then
 
   echo -e "\033[32mInstalling CNI: Cilium\033[0m"
 
-  # Install Cilium CLI  
+  # Install Cilium CLI
 
-  if [ ! -f /usr/local/bin/cilium ]; then    
+  if [ ! -f /usr/local/bin/cilium ]; then  
     CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
     CLI_ARCH=amd64
     if [ "$(uname -m)" = "aarch64" ]; then CLI_ARCH=arm64; fi
@@ -567,17 +567,13 @@ elif [ $k8sCNI == "cilium" ]; then
 
   # Enable Hubble & Hubble UI
 
-  kubectl get deployment -n kube-system hubble-relay &> /dev/null
-  export HUBBLE_ENABLED=$?
-
-  kubectl get deployment -n kube-system hubble-ui 2> /dev/null
-  export HUBBLE_UI_ENABLED=$?
-
-  if [ $HUBBLE_ENABLED == 1 ]; then
+  if ! kubectl get deployment -n kube-system hubble-relay &> /dev/null; then
+    echo -e "\033[32mEnabling Hubble\033[0m"
     cilium hubble enable
   fi
 
-  if [ $HUBBLE_UI_ENABLED == 1 ]; then
+  if ! kubectl get deployment -n kube-system hubble-ui &> /dev/null; then
+    echo -e "\033[32mEnabling Hubble UI\033[0m"
     cilium hubble enable --ui
   fi
 
