@@ -537,11 +537,10 @@ elif [ $k8sCNI == "cilium" ]; then
 
   echo -e "\033[32mInstalling CNI: Cilium\033[0m"
 
-  # Install Cilium CLI
-
-  CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
+  # Install Cilium CLI  
 
   if [ ! -f /usr/local/bin/cilium ]; then    
+    CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
     CLI_ARCH=amd64
     if [ "$(uname -m)" = "aarch64" ]; then CLI_ARCH=arm64; fi
     curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
