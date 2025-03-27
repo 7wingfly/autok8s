@@ -7,6 +7,7 @@
 - Refactor control-plane node taint removal steps.
 - Add 10 second sleep after any warning message.
 - Fun improvements to splash screen.
+- Hide output of `apt-get update`.
 
 Tested with:
 

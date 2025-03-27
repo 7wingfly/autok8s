@@ -242,7 +242,7 @@ fi
 
 echo -e "\033[32mInstalling prerequisites\033[0m"
 
-apt-get update -q
+apt-get update -qq
 apt-get install -qqy apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
 
 # Add Docker Repository https://docs.docker.com/engine/install/ubuntu/
@@ -266,7 +266,7 @@ echo -e "\033[32mInstalling Docker\033[0m"
 
 sleep 1 # Sleep for a second in case of file locks
 
-apt-get update -q
+apt-get update -qq
 apt-get install -qqy docker-ce docker-ce-cli
 
 tee /etc/docker/daemon.json >/dev/null <<EOF
@@ -328,7 +328,7 @@ echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.
 
 sleep 1 # Sleep for a second in case of file locks
 
-apt-get update -q
+apt-get update -qq
 apt-get install -qqy kubelet kubeadm kubectl
 
 # Configuring Prerequisite

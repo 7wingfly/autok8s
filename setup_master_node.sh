@@ -363,7 +363,7 @@ echo -e "\033[32mInstalling prerequisites\033[0m"
 
 sleep 1 # Sleep for a second in case of file locks
 
-apt-get update -q
+apt-get update -qq
 apt-get install -qqy apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
 
 # Add Docker Repository https://docs.docker.com/engine/install/ubuntu/
@@ -387,7 +387,7 @@ echo -e "\033[32mInstalling Docker\033[0m"
 
 sleep 1 # Sleep for a second in case of file locks
 
-apt-get update -q
+apt-get update -qq
 apt-get install -qqy docker-ce docker-ce-cli
 
 tee /etc/docker/daemon.json >/dev/null <<EOF
@@ -449,7 +449,7 @@ echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.
 
 sleep 1 # Sleep for a second in case of file locks
 
-apt-get update -q
+apt-get update -qq
 apt-get install -qqy kubelet kubeadm kubectl
 
 # Configuring Prerequisite
@@ -540,31 +540,47 @@ elif [ $k8sCNI == "cilium" ]; then
   # Install Cilium CLI
 
   CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
-  CLI_ARCH=amd64
-  if [ "$(uname -m)" = "aarch64" ]; then CLI_ARCH=arm64; fi
-  curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
-  sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
-  sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
-  rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+
+  if [ ! -f /usr/local/bin/cilium ]; then    
+    CLI_ARCH=amd64
+    if [ "$(uname -m)" = "aarch64" ]; then CLI_ARCH=arm64; fi
+    curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+    sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
+    sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
+    rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+  fi
 
   # Install Hubble Client
 
-  HUBBLE_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/hubble/master/stable.txt)
-  HUBBLE_ARCH=amd64
-  if [ "$(uname -m)" = "aarch64" ]; then HUBBLE_ARCH=arm64; fi
-  curl -L --fail --remote-name-all https://github.com/cilium/hubble/releases/download/$HUBBLE_VERSION/hubble-linux-${HUBBLE_ARCH}.tar.gz{,.sha256sum}
-  sha256sum --check hubble-linux-${HUBBLE_ARCH}.tar.gz.sha256sum
-  sudo tar xzvfC hubble-linux-${HUBBLE_ARCH}.tar.gz /usr/local/bin
-  rm hubble-linux-${HUBBLE_ARCH}.tar.gz{,.sha256sum}
+  if [ ! -f /usr/local/bin/hubble ]; then
+    HUBBLE_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/hubble/master/stable.txt)
+    HUBBLE_ARCH=amd64
+    if [ "$(uname -m)" = "aarch64" ]; then HUBBLE_ARCH=arm64; fi
+    curl -L --fail --remote-name-all https://github.com/cilium/hubble/releases/download/$HUBBLE_VERSION/hubble-linux-${HUBBLE_ARCH}.tar.gz{,.sha256sum}
+    sha256sum --check hubble-linux-${HUBBLE_ARCH}.tar.gz.sha256sum
+    sudo tar xzvfC hubble-linux-${HUBBLE_ARCH}.tar.gz /usr/local/bin
+    rm hubble-linux-${HUBBLE_ARCH}.tar.gz{,.sha256sum}
+  fi
 
   # Install Cilium
 
-  cilium install
+  cilium install || true
 
   # Enable Hubble & Hubble UI
 
-  cilium hubble enable
-  cilium hubble enable --ui
+  kubectl get deployment -n kube-system hubble-relay &> /dev/null
+  export HUBBLE_ENABLED=$?
+
+  kubectl get deployment -n kube-system hubble-ui 2> /dev/null
+  export HUBBLE_UI_ENABLED=$?
+
+  if [ $HUBBLE_ENABLED == 1 ]; then
+    cilium hubble enable
+  fi
+
+  if [ $HUBBLE_UI_ENABLED == 1 ]; then
+    cilium hubble enable --ui
+  fi
 
   # Get Cilium status (Not all pods start up unless taint is removed)
   
@@ -607,8 +623,10 @@ fi
 
 # Define annotations for CSI drivers based on CNI choice
 
+export CSI_CNI_ANNOTATIONS=""
+
 if [ $k8sCNI == "cilium" ]; then
-  export CSI_CNI_ANNOTATIONS="--set controller.podAnnotations.\"cilium\.io/unmanaged\"=\"true\" --set node.podAnnotations.\"cilium\.io/unmanaged\"=\"true\""
+  CSI_CNI_ANNOTATIONS="--set controller.podAnnotations.\"cilium\.io/unmanaged\"=\"true\" --set node.podAnnotations.\"cilium\.io/unmanaged\"=\"true\""
 fi
 
 # NFS CSI Driver https://github.com/kubernetes-csi/csi-driver-nfs/tree/master/charts
@@ -713,7 +731,7 @@ fi
 
 # Install MetalLB https://metallb.universe.tf/installation/
 
-if [ $k8sAllowMasterNodeSchedule == true && $k8sCNI != "none" ]; then
+if [[ $k8sAllowMasterNodeSchedule == true && $k8sCNI != "none" ]]; then
   echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
   kubectl create namespace metallb-system || true
