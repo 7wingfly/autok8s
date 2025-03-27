@@ -1,6 +1,6 @@
 
 ---
-### 1.1.1
+### 1.2.0
 *March 26th 2025*
 
 - Add feature for installing Cilium CNI.
