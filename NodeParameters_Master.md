@@ -16,7 +16,7 @@ Parameter values which are wraped in quotes must include the quotes when applied
 |`--dns-search`|The local DNS search domains.|`"domain.local"`|`"example.com domain.internal"`|No|
 |`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.25.0-00`|No|
 |`--k8s-load-balancer-ip-range`|The IP range or CIDR for Kubernetes load balancer.|-|`192.168.0.10-192.168.0.15`<br>or<br>`192.168.0.1/24`|No|
-|`--k8s-cni`|The Kubernetes network plugin to install.|`flannel`|`none`|No|
+|`--k8s-cni`|The Kubernetes network plugin to install.|`flannel`|`cilium` or `none`|No|
 |`--k8s-allow-master-node-schedule`|Set to `true` to allow master node to schedule pods.|`true`|`false`|No|
 |`--k8s-kubeadm-options`|Additional options to pass into the `kubeadm init` command.|-|`"--ignore-preflight-errors=all"`|No|
 |`--nfs-install-server`|Set to `true` to install NFS server.|`true`|`false`|No|
@@ -133,9 +133,9 @@ Example Usage - Kubernetes CNI
 
 ```
 ./setup_master_node.sh \  
-    --k8s-cni flannel
+    --k8s-cni cilium
 ```
-> Currently the only options are `flannel` and `none`. If you choose `none`, MetalLB will also be skipped, and your control-plane node will be in a `NotReady` state until you install your own CNI.
+> Currently the options are `flannel`, `cilium` or `none`. If you choose `none`, MetalLB will also be skipped, and your control-plane node will be in a `NotReady` state until you install your own CNI.
 
 <br>
 Example Usage - All:
@@ -151,7 +151,7 @@ Example Usage - All:
     --dns-search "domain1.local domain2.local" \
     --k8s-version 1.26.0-00 \
     --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29 \
-    --k8s-cni flannel \
+    --k8s-cni cilium \
     --k8s-allow-master-node-schedule true \
     --k8s-kubeadm-options "--ignore-preflight-errors=all" \
     --nfs-install-server true \

@@ -1,12 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-echo -e '\e[35m      _         _        \e[36m _    ___       \e[0m'
-echo -e '\e[35m     / \  _   _| |_ ___  \e[36m| | _( _ ) ___  \e[0m'
-echo -e '\e[35m    / _ \| | | | __/ _ \ \e[36m| |/ / _ \/ __| \e[0m'
-echo -e '\e[35m   / ___ \ |_| | || (_) |\e[36m|   < (_) \__ \ \e[0m'
-echo -e '\e[35m  /_/   \_\__,_|\__\___/ \e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                 Version:\e[36m 1.1.0\e[0m\n'
+echo -e '\e[35m      _         _       \e[36m _    ___       \e[0m'
+echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
+echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
+echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
+echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
+echo -e '\e[35m                Version:\e[36m 1.2.0\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -138,6 +138,7 @@ if [ $HARDWARE_CHECK_PASS == false ]; then
 fi
 
 export PARAM_CHECK_PASS=true
+export PARAM_CHECK_WARN=false
 
 # Try and determine IP address if one is not specified
 
@@ -169,7 +170,10 @@ if [[ ! "$k8sAllowMasterNodeSchedule" =~ ^(true|false)$ ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--k8s-allow-master-node-schedule\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
   PARAM_CHECK_PASS=false
 elif [[ "$k8sAllowMasterNodeSchedule" == false ]]; then
-  echo -e "\e[33mWarning:\e[0m Master (control-plane) node scheduling will not be enabled. This means that non-core pods will not be scheduled until a worker node is added to the cluster. This includes Metal LB which will prevent external traffic from reach the cluster."
+  cnischedulewarn=""
+  if [ $k8sCNI == "cilium" ]; then cnischedulewarn=" and some Cilium pods"; fi
+  echo -e "\e[33mWarning:\e[0m Master (control-plane) node scheduling will not be enabled. This means that non-core pods will not be scheduled until a worker node is added to the cluster. This includes Metal LB$cnischedulewarn which will result in networking issues."
+  PARAM_CHECK_WARN=true
 fi
 
 if [[ ! "$smbInstallServer" =~ ^(true|false)$ ]]; then
@@ -205,6 +209,7 @@ if [[ "$configureTCPIPSetting" == true ]]; then
   fi
   if [[ "${#dnsServers[@]}" -gt 3 ]]; then
     echo -e "\e[33mWarning:\e[0m Number of DNS servers should not be greater than 3. Kubernetes may display errors but will continue to work."
+    PARAM_CHECK_WARN=true
   fi
   for ip in "${dnsServers[@]}"; do
     if [[ ! $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
@@ -219,9 +224,14 @@ if [[ ! $k8sVersion =~ ^(latest)$|^[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
     PARAM_CHECK_PASS=false
 fi
 
-if [[ ! $k8sCNI =~ ^(flannel|none)$ ]]; then
+if [[ ! $k8sCNI =~ ^(flannel|cilium|none)$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--k8s-cni\e[0m value \e[35m$k8sVersion\e[0m is not valid. Options are: flannel, none."
     PARAM_CHECK_PASS=false
+fi
+
+if [ $k8sCNI == "none" ]; then
+  echo -e "\033[33mWarning:\033[0m You have chosen not to install a CNI. Your master node will not be in a 'ready' state until you install one."
+  PARAM_CHECK_WARN=true
 fi
 
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
@@ -299,8 +309,7 @@ if [ $PARAM_CHECK_PASS == false ]; then
   exit 1
 fi
 
-if [ $k8sCNI == "none" ]; then
-  echo -e "\033[33mWarning:\033[0m You have chosen not to install a CNI. Your master node will not be in a 'ready' state until you install one."
+if [ $PARAM_CHECK_WARN == true ]; then
   sleep 10
 fi
 
@@ -354,7 +363,7 @@ echo -e "\033[32mInstalling prerequisites\033[0m"
 
 sleep 1 # Sleep for a second in case of file locks
 
-apt-get update -q
+apt-get update -qq
 apt-get install -qqy apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
 
 # Add Docker Repository https://docs.docker.com/engine/install/ubuntu/
@@ -378,7 +387,7 @@ echo -e "\033[32mInstalling Docker\033[0m"
 
 sleep 1 # Sleep for a second in case of file locks
 
-apt-get update -q
+apt-get update -qq
 apt-get install -qqy docker-ce docker-ce-cli
 
 tee /etc/docker/daemon.json >/dev/null <<EOF
@@ -440,7 +449,7 @@ echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.
 
 sleep 1 # Sleep for a second in case of file locks
 
-apt-get update -q
+apt-get update -qq
 apt-get install -qqy kubelet kubeadm kubectl
 
 # Configuring Prerequisite
@@ -503,16 +512,82 @@ mkdir -p /home/$SUDO_USER/.kube
 cp -f /etc/kubernetes/admin.conf /home/$SUDO_USER/.kube/config 
 chown $SUDO_USER /home/$SUDO_USER/.kube/config
 
+# Remove control-plane node taints
+
+if [ $k8sAllowMasterNodeSchedule == true ]; then
+  echo -e "\033[32mRemoving NoSchedule taints\033[0m"
+
+  kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule- || true
+  kubectl taint node $HOSTNAME node-role.kubernetes.io/master:NoSchedule- || true # for older versions
+fi
+
 # Install a CNI
 
 if [ $k8sCNI == "flannel" ]; then
   # Flannel https://github.com/flannel-io/flannel/#readme
 
-  echo -e "\033[32mInstalling Flannel Networking\033[0m"
+  echo -e "\033[32mInstalling CNI: Flannel\033[0m"
 
   sysctl net.bridge.bridge-nf-call-iptables=1
   sysctl -p
   kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml --wait --timeout=2m
+
+elif [ $k8sCNI == "cilium" ]; then
+  # Cilium https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/
+
+  echo -e "\033[32mInstalling CNI: Cilium\033[0m"
+
+  # Install Cilium CLI  
+
+  if [ ! -f /usr/local/bin/cilium ]; then    
+    CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
+    CLI_ARCH=amd64
+    if [ "$(uname -m)" = "aarch64" ]; then CLI_ARCH=arm64; fi
+    curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+    sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
+    sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
+    rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+  fi
+
+  # Install Hubble Client
+
+  if [ ! -f /usr/local/bin/hubble ]; then
+    HUBBLE_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/hubble/master/stable.txt)
+    HUBBLE_ARCH=amd64
+    if [ "$(uname -m)" = "aarch64" ]; then HUBBLE_ARCH=arm64; fi
+    curl -L --fail --remote-name-all https://github.com/cilium/hubble/releases/download/$HUBBLE_VERSION/hubble-linux-${HUBBLE_ARCH}.tar.gz{,.sha256sum}
+    sha256sum --check hubble-linux-${HUBBLE_ARCH}.tar.gz.sha256sum
+    sudo tar xzvfC hubble-linux-${HUBBLE_ARCH}.tar.gz /usr/local/bin
+    rm hubble-linux-${HUBBLE_ARCH}.tar.gz{,.sha256sum}
+  fi
+
+  # Install Cilium
+
+  cilium install || true
+
+  # Enable Hubble & Hubble UI
+
+  kubectl get deployment -n kube-system hubble-relay &> /dev/null
+  export HUBBLE_ENABLED=$?
+
+  kubectl get deployment -n kube-system hubble-ui 2> /dev/null
+  export HUBBLE_UI_ENABLED=$?
+
+  if [ $HUBBLE_ENABLED == 1 ]; then
+    cilium hubble enable
+  fi
+
+  if [ $HUBBLE_UI_ENABLED == 1 ]; then
+    cilium hubble enable --ui
+  fi
+
+  # Get Cilium status (Not all pods start up unless taint is removed)
+  
+  if [ $k8sAllowMasterNodeSchedule == true ]; then
+    cilium status --wait 
+  else
+    cilium status
+  fi
 fi
 
 # Install Helm
@@ -545,6 +620,14 @@ elif [ "$nfsServer" != "$HOSTNAME" ]; then
   export INSTALL_NFS_DRIVER=true
 fi
 
+# Define annotations for CSI drivers based on CNI choice
+
+export CSI_CNI_ANNOTATIONS=""
+
+if [ $k8sCNI == "cilium" ]; then
+  CSI_CNI_ANNOTATIONS="--set controller.podAnnotations.\"cilium\.io/unmanaged\"=\"true\" --set node.podAnnotations.\"cilium\.io/unmanaged\"=\"true\""
+fi
+
 # NFS CSI Driver https://github.com/kubernetes-csi/csi-driver-nfs/tree/master/charts
 
 if [ $INSTALL_NFS_DRIVER == true ]; then
@@ -554,7 +637,7 @@ if [ $INSTALL_NFS_DRIVER == true ]; then
   export NFS_NAME_SPACE="kube-system"    
   export NFS_STORAGE_CLASS_FILE="nfsStorageClass.yaml"
   helm repo add csi-driver-nfs https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
-  helm install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE
+  helm install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE $CSI_CNI_ANNOTATIONS
    
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-nfs/blob/master/docs/driver-parameters.md
   cat <<EOF > $NFS_STORAGE_CLASS_FILE
@@ -615,7 +698,7 @@ if [ $INSTALL_SMB_DRIVER == true ]; then
   export SMB_SECRET_NAME="smb-credentials-$SMB_SERVER_NAME_SAFE"  
   export SMB_STORAGE_CLASS_FILE="smbStorageClass.yaml"
   helm repo add csi-driver-smb https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts
-  helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true
+  helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true $CSI_CNI_ANNOTATIONS
   kubectl create secret generic $SMB_SECRET_NAME --from-literal username="$smbUsername" --from-literal password="$smbPassword" -n $SMB_NAME_SPACE
 
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-smb/blob/master/docs/driver-parameters.md
@@ -647,11 +730,9 @@ fi
 
 # Install MetalLB https://metallb.universe.tf/installation/
 
-if [ $k8sAllowMasterNodeSchedule == true && $k8sCNI != "none" ]; then
+if [[ $k8sAllowMasterNodeSchedule == true && $k8sCNI != "none" ]]; then
   echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
-  kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule- || true
-  kubectl taint node $HOSTNAME node-role.kubernetes.io/master:NoSchedule- || true # for older versions
   kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb
   helm repo update
