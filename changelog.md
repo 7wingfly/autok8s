@@ -1,5 +1,11 @@
 
 ---
+### 1.4.0
+*April 26th 2025*
+
+- Add support for Flux
+
+---
 ### 1.3.0
 *April 26th 2025*
 

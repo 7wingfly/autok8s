@@ -54,6 +54,8 @@ Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
 - Installs Metrics Server via Helm chart.
 
+- Installs and bootstraps Flux (Optional, requires access to a git repo)
+
 - Prints a message containing the command and parameters for joining a node to the cluster using the AutoK8s `setup_worker_node.sh` script.
 
 Once your master node is up and running you can use the manifests found in the [TestManifests/Storage](https://github.com/7wingfly/autok8s/tree/main/TestManifests/Storage) directory to test out NFS and SMB and storage. In the near future other manifests will be added for things like networking.
