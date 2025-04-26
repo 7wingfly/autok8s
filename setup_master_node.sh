@@ -764,7 +764,7 @@ fi
 echo -e "\033[32mInstall Metrics Server\033[0m"
 
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system --set args={--kubelet-insecure-tls}
+helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system --set args={--kubelet-insecure-tls} --wait
 
 # Print success message and tips
 
