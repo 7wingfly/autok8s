@@ -52,7 +52,7 @@ Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
 - Installs MetalLB via Helm chart (Requires that you reserve a range of IP addresses on your local network to be used by Kubernetes [services](https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer) of type `LoadBalancer`).
 
-- Installs [Metrics Server](https://artifacthub.io/packages/helm/metrics-server/metrics-server) via Helm chart.
+- Installs Metrics Server via Helm chart.
 
 - Prints a message containing the command and parameters for joining a node to the cluster using the AutoK8s `setup_worker_node.sh` script.
 
