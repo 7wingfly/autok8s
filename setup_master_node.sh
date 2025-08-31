@@ -514,7 +514,7 @@ chown $SUDO_USER /home/$SUDO_USER/.kube/config
 
 # Remove control-plane node taints
 
-export $hostname_lower=$(echo $HOSTNAME | tr '[:upper:]' '[:lower:]')
+export hostname_lower=$(echo $HOSTNAME | tr '[:upper:]' '[:lower:]')
 
 if [ $k8sAllowMasterNodeSchedule == true ]; then
   echo -e "\033[32mRemoving NoSchedule taints\033[0m"
