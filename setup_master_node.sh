@@ -514,11 +514,13 @@ chown $SUDO_USER /home/$SUDO_USER/.kube/config
 
 # Remove control-plane node taints
 
+export $hostname_lower=$(echo $HOSTNAME | tr '[:upper:]' '[:lower:]')
+
 if [ $k8sAllowMasterNodeSchedule == true ]; then
   echo -e "\033[32mRemoving NoSchedule taints\033[0m"
 
-  kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule- || true
-  kubectl taint node $HOSTNAME node-role.kubernetes.io/master:NoSchedule- || true # for older versions
+  kubectl taint node $hostname_lower node-role.kubernetes.io/control-plane:NoSchedule- || true
+  kubectl taint node $hostname_lower node-role.kubernetes.io/master:NoSchedule- || true # for older versions
 fi
 
 # Install a CNI
