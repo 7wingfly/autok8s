@@ -580,6 +580,19 @@ elif [ $k8sCNI == "cilium" ]; then
   # Get Cilium status (Not all pods start up unless taint is removed)
   
   if [ $k8sAllowMasterNodeSchedule == true ]; then
+    cilium upgrade --reuse-values \
+      --set hubble.relay.tolerations[0].key=node-role.kubernetes.io/control-plane \
+      --set hubble.relay.tolerations[0].operator=Exists \
+      --set hubble.relay.tolerations[0].effect=NoSchedule \
+      --set hubble.relay.tolerations[1].key=node-role.kubernetes.io/master \
+      --set hubble.relay.tolerations[1].operator=Exists \
+      --set hubble.relay.tolerations[1].effect=NoSchedule \
+      --set hubble.ui.tolerations[0].key=node-role.kubernetes.io/control-plane \
+      --set hubble.ui.tolerations[0].operator=Exists \
+      --set hubble.ui.tolerations[0].effect=NoSchedule \
+      --set hubble.ui.tolerations[1].key=node-role.kubernetes.io/master \
+      --set hubble.ui.tolerations[1].operator=Exists \
+      --set hubble.ui.tolerations[1].effect=NoSchedule
     cilium status --wait 
   else
     cilium status
