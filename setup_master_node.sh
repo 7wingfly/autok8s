@@ -592,11 +592,13 @@ chown $SUDO_USER /home/$SUDO_USER/.kube/config
 
 # Remove control-plane node taints
 
+export hostname_lower=$(echo $HOSTNAME | tr '[:upper:]' '[:lower:]')
+
 if [ $k8sAllowMasterNodeSchedule == true ]; then
   echo -e "\033[32mRemoving NoSchedule taints\033[0m"
 
-  kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule- || true
-  kubectl taint node $HOSTNAME node-role.kubernetes.io/master:NoSchedule- || true # for older versions
+  kubectl taint node $hostname_lower node-role.kubernetes.io/control-plane:NoSchedule- || true
+  kubectl taint node $hostname_lower node-role.kubernetes.io/master:NoSchedule- || true # for older versions
 fi
 
 # Install a CNI
@@ -658,6 +660,19 @@ elif [ $k8sCNI == "cilium" ]; then
   # Get Cilium status (Not all pods start up unless taint is removed)
   
   if [ $k8sAllowMasterNodeSchedule == true ]; then
+    cilium upgrade --reuse-values \
+      --set hubble.relay.tolerations[0].key=node-role.kubernetes.io/control-plane \
+      --set hubble.relay.tolerations[0].operator=Exists \
+      --set hubble.relay.tolerations[0].effect=NoSchedule \
+      --set hubble.relay.tolerations[1].key=node-role.kubernetes.io/master \
+      --set hubble.relay.tolerations[1].operator=Exists \
+      --set hubble.relay.tolerations[1].effect=NoSchedule \
+      --set hubble.ui.tolerations[0].key=node-role.kubernetes.io/control-plane \
+      --set hubble.ui.tolerations[0].operator=Exists \
+      --set hubble.ui.tolerations[0].effect=NoSchedule \
+      --set hubble.ui.tolerations[1].key=node-role.kubernetes.io/master \
+      --set hubble.ui.tolerations[1].operator=Exists \
+      --set hubble.ui.tolerations[1].effect=NoSchedule
     cilium status --wait 
   else
     cilium status
@@ -707,7 +722,7 @@ fi
 if [ $INSTALL_NFS_DRIVER == true ]; then
   echo -e "\033[32mInstall NFS CSI driver Helm chart\033[0m"
 
-  export NFS_SERVER_NAME_SAFE=$(echo "$nfsServer" | tr '.' '-')
+  export NFS_SERVER_NAME_SAFE=$(echo "$nfsServer" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
   export NFS_NAME_SPACE="kube-system"    
   export NFS_STORAGE_CLASS_FILE="nfsStorageClass.yaml"
   helm repo add csi-driver-nfs https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
@@ -767,7 +782,7 @@ fi
 if [ $INSTALL_SMB_DRIVER == true ]; then
   echo -e "\033[32mInstall SMB CSI driver Helm chart\033[0m"
 
-  export SMB_SERVER_NAME_SAFE=$(echo "$smbServer" | tr '.' '-')
+  export SMB_SERVER_NAME_SAFE=$(echo "$smbServer" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
   export SMB_NAME_SPACE="kube-system"
   export SMB_SECRET_NAME="smb-credentials-$SMB_SERVER_NAME_SAFE"  
   export SMB_STORAGE_CLASS_FILE="smbStorageClass.yaml"
