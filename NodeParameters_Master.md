@@ -65,15 +65,13 @@ Example Usage - Minimum Required:
 ./setup_master_node.sh \
     --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
 ```
-<p style="width=100%; text-align: center; font-style: italic">Or if you're providing a kubeadm config file instead:</p>
+<p style="width=100%; text-align: center; font-style: italic">Or if your server has more than one IP address</p>
 
 ```
 ./setup_master_node.sh \
-    --k8s-kubeadm-config /path/to/config.yaml
+    --ip-address 192.168.0.230 \
+    --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
 ```
-
-
-> **NOTE:** If your server has more than one IP address you will need to include the `--ip-address` parameter.    
 
 <br>
 Example Usage - TCP/IP Setup:
