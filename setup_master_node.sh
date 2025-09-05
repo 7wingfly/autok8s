@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.3.0\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.4.0\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -52,6 +52,7 @@ export k8sLoadBalancerIPRange=""                            # Either a range suc
 export k8sCNI="flannel"                                     # Choose a Kubernetes network plugin.
 export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice however without it MetalLB cannot be deployed until a node is added.
 export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm init command. 
+export k8sKubeadmConfig=""                                  # Path to kubeadm config file. Cannot be used with 'k8sKubeadmOptions'.
 
 # ------------------------------
 # Kubernetes Storage Classes
@@ -73,7 +74,7 @@ export smbSharePath="/shares/smb"                           # Local server only.
 export smbShareName="persistentvolumes"
 export smbUsername=$SUDO_USER
 export smbPassword="password"
-export smbDefaultStorageClass=true                          # Only one storage class should be set as default.
+export smbDefaultStorageClass=false                          # Only one storage class should be set as default.
 
 # ------------------------------
 # Parameters
@@ -94,6 +95,7 @@ while [[ $# -gt 0 ]]; do
         --k8s-cni) k8sCNI="$2"; shift; shift;;
         --k8s-allow-master-node-schedule) k8sAllowMasterNodeSchedule="$2"; shift; shift;;
         --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
+        --k8s-kubeadm-config) k8sKubeadmConfig="$2"; shift; shift;;
         --nfs-install-server) nfsInstallServer="$2"; shift; shift;;
         --nfs-server) nfsServer="$2"; shift; shift;;
         --nfs-share-path) nfsSharePath="$2"; shift; shift;;
@@ -234,6 +236,21 @@ if [ $k8sCNI == "none" ]; then
   PARAM_CHECK_WARN=true
 fi
 
+if [[ "$k8sKubeadmOptions" =~ "--config" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--config\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m. Instead use \e[35m--k8s-kubeadm-config <config file>\e[0m.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sKubeadmOptions" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-options\e[0m and \e[35m--k8s-kubeadm-config\e[0m cannot be used at the same time.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -f "$k8sKubeadmConfig" ]]; then
+  echo -e "\e[31mError:\e[0m The file \e[35m$k8sKubeadmConfig\e[0m specfied for \e[35m--k8s-kubeadm-config\e[0m does not exist.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--k8s-load-balancer-ip-range\e[0m is required. Must be a valid IP range or CIDR."
   PARAM_CHECK_PASS=false
@@ -303,6 +320,12 @@ fi
 
 if [[ "$nfsDefaultStorageClass" = true && "$smbDefaultStorageClass" = true ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--smb-default-storage-class\e[0m and \e[35m--nfs-default-storage-class\e[0m cannot both be set to true at the same time.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$nfsDefaultStorageClass" = false && "$smbDefaultStorageClass" = false ]]; then
+  echo -e "\e[32mInfo:\e[0m The default storage class will be set to \e[35msmb\e[0m"
+  smbDefaultStorageClass=true
 fi
 
 if [ $PARAM_CHECK_PASS == false ]; then
@@ -496,7 +519,15 @@ fi
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
 
-kubeadm init --apiserver-advertise-address=$ipAddress --pod-network-cidr=10.244.0.0/16 $k8sKubeadmOptions
+if [[ -z "$k8sKubeadmConfig" ]]; then
+  export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=10.244.0.0/16 $k8sKubeadmOptions"
+else
+  echo -e "\033[32mValidating kubeadm config file\033[0m"
+  kubeadm config validate --config $k8sKubeadmConfig
+  export KUBEADM_ARGS="--config $k8sKubeadmConfig"
+fi
+
+kubeadm init $KUBEADM_ARGS
 
 # Setup kube config files.
 
