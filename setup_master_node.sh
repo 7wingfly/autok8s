@@ -546,12 +546,14 @@ chown $SUDO_USER /home/$SUDO_USER/.kube/config
 # Remove control-plane node taints
 
 export hostname_lower=$(echo $HOSTNAME | tr '[:upper:]' '[:lower:]')
+export WAIT=""
 
 if [ $k8sAllowMasterNodeSchedule == true ]; then
   echo -e "\033[32mRemoving NoSchedule taints\033[0m"
 
   kubectl taint node $hostname_lower node-role.kubernetes.io/control-plane:NoSchedule- || true
   kubectl taint node $hostname_lower node-role.kubernetes.io/master:NoSchedule- || true # for older versions
+  WAIT="--wait"
 fi
 
 # Install a CNI
@@ -563,7 +565,7 @@ if [ $k8sCNI == "flannel" ]; then
 
   sysctl net.bridge.bridge-nf-call-iptables=1
   sysctl -p
-  kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml --wait --timeout=2m
+  kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml $WAIT
 
 elif [ $k8sCNI == "cilium" ]; then
   # Cilium https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/
@@ -626,10 +628,9 @@ elif [ $k8sCNI == "cilium" ]; then
       --set hubble.ui.tolerations[1].key=node-role.kubernetes.io/master \
       --set hubble.ui.tolerations[1].operator=Exists \
       --set hubble.ui.tolerations[1].effect=NoSchedule
-    cilium status --wait 
-  else
-    cilium status
   fi
+  
+  cilium status $WAIT  
 fi
 
 # Install Helm
@@ -772,13 +773,13 @@ fi
 
 # Install MetalLB https://metallb.universe.tf/installation/
 
-if [[ $k8sAllowMasterNodeSchedule == true && $k8sCNI != "none" ]]; then
+if [[ $k8sCNI != "none" ]]; then
   echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
   kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb
   helm repo update
-  helm upgrade -i metallb metallb/metallb -n metallb-system --wait
+  helm upgrade -i metallb metallb/metallb -n metallb-system $WAIT
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
   export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
@@ -810,7 +811,7 @@ fi
 echo -e "\033[32mInstall Metrics Server\033[0m"
 
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system --set args={--kubelet-insecure-tls} --wait
+helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system --set args={--kubelet-insecure-tls} $WAIT
 
 # Print success message and tips
 
