@@ -384,10 +384,10 @@ fi
 
 echo -e "\033[32mInstalling prerequisites\033[0m"
 
-sleep 1 # Sleep for a second in case of file locks
+export APT_LOCK="-o DPkg::Lock::Timeout=600"
 
-apt-get update -qq
-apt-get install -qqy apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
+apt-get update -qq $APT_LOCK
+apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
 
 # Add Docker Repository https://docs.docker.com/engine/install/ubuntu/
 
@@ -408,10 +408,7 @@ fi
 
 echo -e "\033[32mInstalling Docker\033[0m"
 
-sleep 1 # Sleep for a second in case of file locks
-
-apt-get update -qq
-apt-get install -qqy docker-ce docker-ce-cli
+apt-get install -qqy $APT_LOCK docker-ce docker-ce-cli
 
 tee /etc/docker/daemon.json >/dev/null <<EOF
 {
@@ -470,10 +467,7 @@ echo -e "\033[32mAdding Kubernetes community repository\033[0m"
 curl -fsSL https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/Release.key | gpg --dearmor -o $KEYRINGS_DIR/kubernetes-apt-keyring.gpg    
 echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
 
-sleep 1 # Sleep for a second in case of file locks
-
-apt-get update -qq
-apt-get install -qqy kubelet kubeadm kubectl
+apt-get install -qqy $APT_LOCK kubelet kubeadm kubectl
 
 # Configuring Prerequisite
 
@@ -642,7 +636,7 @@ export INSTALL_NFS_DRIVER=false # Do not edit. Will be set to true if required
 if [ $nfsInstallServer == true ]; then
   echo -e "\033[32mInstall NFS File Server\033[0m"
 
-  apt install -qqy nfs-kernel-server
+  apt-get install -qqy $APT_LOCK nfs-kernel-server
   export NFS_CONFIG_FILE="/etc/exports"  
   if ! grep -q "$nfsSharePath" "$NFS_CONFIG_FILE"; then
     mkdir -p $nfsSharePath
@@ -706,7 +700,7 @@ export INSTALL_SMB_DRIVER=false # Do not edit. Will be set to true if required
 if [ $smbInstallServer == true ]; then
   echo -e "\033[32mInstall SMB File Server\033[0m"
 
-  apt install -qqy samba
+  apt-get install -qqy $APT_LOCK samba
   export SMB_CONFIG_FILE="/etc/samba/smb.conf"  
   if ! grep -q "$smbShareName" "$SMB_CONFIG_FILE"; then
     mkdir -p $smbSharePath
