@@ -551,7 +551,7 @@ if [ $k8sAllowMasterNodeSchedule == true ]; then
   echo -e "\033[32mRemoving NoSchedule taints\033[0m"
 
   kubectl taint node $hostname_lower node-role.kubernetes.io/control-plane:NoSchedule- || true
-  kubectl taint node $hostname_lower node-role.kubernetes.io/master:NoSchedule- || true # for older versions  
+  kubectl taint node $hostname_lower node-role.kubernetes.io/master:NoSchedule- || true # for older versions
 fi
 
 # Install a CNI
