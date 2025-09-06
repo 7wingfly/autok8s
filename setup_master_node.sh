@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.4.0\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.4.1\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -612,24 +612,21 @@ elif [ $k8sCNI == "cilium" ]; then
 
   # Get Cilium status (Not all pods start up unless taint is removed)
   
-  if [ $k8sAllowMasterNodeSchedule == true ]; then
-    cilium upgrade --reuse-values \
-      --set hubble.relay.tolerations[0].key=node-role.kubernetes.io/control-plane \
-      --set hubble.relay.tolerations[0].operator=Exists \
-      --set hubble.relay.tolerations[0].effect=NoSchedule \
-      --set hubble.relay.tolerations[1].key=node-role.kubernetes.io/master \
-      --set hubble.relay.tolerations[1].operator=Exists \
-      --set hubble.relay.tolerations[1].effect=NoSchedule \
-      --set hubble.ui.tolerations[0].key=node-role.kubernetes.io/control-plane \
-      --set hubble.ui.tolerations[0].operator=Exists \
-      --set hubble.ui.tolerations[0].effect=NoSchedule \
-      --set hubble.ui.tolerations[1].key=node-role.kubernetes.io/master \
-      --set hubble.ui.tolerations[1].operator=Exists \
-      --set hubble.ui.tolerations[1].effect=NoSchedule
-    cilium status --wait 
-  else
-    cilium status
-  fi
+  cilium upgrade --reuse-values \
+    --set hubble.relay.tolerations[0].key=node-role.kubernetes.io/control-plane \
+    --set hubble.relay.tolerations[0].operator=Exists \
+    --set hubble.relay.tolerations[0].effect=NoSchedule \
+    --set hubble.relay.tolerations[1].key=node-role.kubernetes.io/master \
+    --set hubble.relay.tolerations[1].operator=Exists \
+    --set hubble.relay.tolerations[1].effect=NoSchedule \
+    --set hubble.ui.tolerations[0].key=node-role.kubernetes.io/control-plane \
+    --set hubble.ui.tolerations[0].operator=Exists \
+    --set hubble.ui.tolerations[0].effect=NoSchedule \
+    --set hubble.ui.tolerations[1].key=node-role.kubernetes.io/master \
+    --set hubble.ui.tolerations[1].operator=Exists \
+    --set hubble.ui.tolerations[1].effect=NoSchedule  
+  
+  cilium status --wait
 fi
 
 # Install Helm
@@ -772,13 +769,19 @@ fi
 
 # Install MetalLB https://metallb.universe.tf/installation/
 
-if [[ $k8sAllowMasterNodeSchedule == true && $k8sCNI != "none" ]]; then
+if [[ $k8sCNI != "none" ]]; then
   echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
   kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb
   helm repo update
-  helm upgrade -i metallb metallb/metallb -n metallb-system --wait
+  helm upgrade --install metallb metallb/metallb -n metallb-system --wait \
+    --set controller.tolerations[0].key=node-role.kubernetes.io/control-plane \
+    --set controller.tolerations[0].operator=Exists \
+    --set controller.tolerations[0].effect=NoSchedule \
+    --set controller.tolerations[1].key=node-role.kubernetes.io/master \
+    --set controller.tolerations[1].operator=Exists \
+    --set controller.tolerations[1].effect=NoSchedule
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
   export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
@@ -802,7 +805,7 @@ EOF
   kubectl apply -f $METALLB_IPPOOL_L2AD -n metallb-system
   rm $METALLB_IPPOOL_L2AD
 else
-  echo -e "\033[33mSkipping Metal LB step. You will need to run this manually once you've added another node in order to access your pods from your local network.\033[0m"
+  echo -e "\033[33mSkipping Metal LB step. You will need to run this manually once you've installed a CNI in order to access your pods from your local network.\033[0m"
 fi
 
 # Install Metrics Server
@@ -810,7 +813,14 @@ fi
 echo -e "\033[32mInstall Metrics Server\033[0m"
 
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system --set args={--kubelet-insecure-tls} --wait
+helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system \
+  --set args={--kubelet-insecure-tls} \
+  --set tolerations[0].key=node-role.kubernetes.io/control-plane \
+  --set tolerations[0].operator=Exists \
+  --set tolerations[0].effect=NoSchedule \
+  --set tolerations[1].key=node-role.kubernetes.io/master \
+  --set tolerations[1].operator=Exists \
+  --set tolerations[1].effect=NoSchedule    
 
 # Print success message and tips
 
