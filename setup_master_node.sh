@@ -408,6 +408,7 @@ fi
 
 echo -e "\033[32mInstalling Docker\033[0m"
 
+apt-get update -qq $APT_LOCK
 apt-get install -qqy $APT_LOCK docker-ce docker-ce-cli
 
 tee /etc/docker/daemon.json >/dev/null <<EOF
@@ -467,6 +468,7 @@ echo -e "\033[32mAdding Kubernetes community repository\033[0m"
 curl -fsSL https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/Release.key | gpg --dearmor -o $KEYRINGS_DIR/kubernetes-apt-keyring.gpg    
 echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
 
+apt-get update -qq $APT_LOCK
 apt-get install -qqy $APT_LOCK kubelet kubeadm kubectl
 
 # Configuring Prerequisite
