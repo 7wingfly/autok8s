@@ -90,7 +90,9 @@ export fluxGitHttpsUseTokenAuth=false
 export fluxGitHttpsUseBearerToken=false
 export fluxGitAuthMethod=""
 export fluxGitSshPrivateKeyFile=""
+export fluxGitHttpsUsername=""
 export fluxGitHttpsPassword=""
+export fluxGitHttpsCAFile=""
 export fluxGitSshPrivateKeyPassword=""
 export fluxOptions=""
 
@@ -363,6 +365,10 @@ elif [[ "$fluxInstall" = true ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--flux-git-repo\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m."
     PARAM_CHECK_PASS=false
   fi
+  if [[ -z "$fluxGitRepo" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-repo\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  fi
   if [[ -z "$fluxGitPath" ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--flux-git-path\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m. This would typically be something like \e[35mclusters/my-cluster\e[0m."
     PARAM_CHECK_PASS=false
@@ -425,6 +431,10 @@ elif [[ "$fluxInstall" = true ]]; then
       fi
       if [[ -n "$fluxGitHttpsCAFile" ]] && [[ ! -f "$fluxGitHttpsCAFile" ]]; then
         echo -e "\e[31mError:\e[0m Flux Git CA file not found: \e[35m$fluxGitHttpsCAFile\e[0m. Please check \e[35m--flux-git-https-ca-file\e[0m."
+        PARAM_CHECK_PASS=false
+      fi
+      if [[ "$fluxGitHost" == "github.com" && "$fluxGitHttpsUseTokenAuth" == false && "$fluxGitHttpsUseBearerToken" == false ]]; then
+        echo -e "\e[31mError:\e[0m When connecting to GitHub via HTTPS you must set either \e[35m--flux-git-https-use-token-auth true\e[0m or \e[35m--flux-git-https-use-bearer-token true\e[0m."
         PARAM_CHECK_PASS=false
       fi
     fi
