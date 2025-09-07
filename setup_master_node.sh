@@ -83,8 +83,16 @@ export smbDefaultStorageClass=false                         # Only one storage c
 export fluxInstall=false
 export fluxGitHost="github.com"
 export fluxGitBranch="main"
+export fluxGitOrg=""
+export fluxGitRepo=""
+export fluxGitPath=""
 export fluxGitHttpsUseTokenAuth=false
 export fluxGitHttpsUseBearerToken=false
+export fluxGitAuthMethod=""
+export fluxGitSshPrivateKeyFile=""
+export fluxGitHttpsPassword=""
+export fluxGitSshPrivateKeyPassword=""
+export fluxOptions=""
 
 # ------------------------------
 # Parameters
@@ -344,15 +352,29 @@ if [[ -n "$smbServer" && ! $smbServer =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$ 
 fi
 
 if [[ ! "$fluxInstall" =~ ^(true|false)$ ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--enable-flux\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+  echo -e "\e[31mError:\e[0m \e[35m--install-flux\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
   PARAM_CHECK_PASS=false
 elif [[ "$fluxInstall" = true ]]; then
-  if [[ "$fluxGitAuthMethod" != "ssh" && "$fluxGitAuthMethod" != "https" ]]; then
+  if [[ -z "$fluxGitOrg" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-org\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m. If you are not part of an organisation, use your username."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$fluxGitRepo" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-repo\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$fluxGitPath" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-path\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m. This would typically be something like \e[35mclusters/my-cluster\e[0m."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$fluxGitAuthMethod" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-auth-method\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false  
+  elif [[ ! "$fluxGitAuthMethod" =~ ^(ssh|https)$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--flux-git-auth-method\e[0m must be set to either \e[35mssh\e[0m or \e[35mhttps\e[0m."
     PARAM_CHECK_PASS=false
   else
-    if [[ "$fluxGitAuthMethod" == "ssh" ]]; then
-      echo $fluxGitSshPrivateKeyFile
+    if [[ "$fluxGitAuthMethod" == "ssh" ]]; then      
       if [[ -z "$fluxGitSshPrivateKeyFile" ]]; then
         echo -e "\e[31mError:\e[0m \e[35m--flux-git-ssh-private-key-file\e[0m is required if \e[35m--flux-git-auth-method\e[0m is set to \e[35mssh\e[0m."
         PARAM_CHECK_PASS=false
@@ -361,14 +383,27 @@ elif [[ "$fluxInstall" = true ]]; then
         PARAM_CHECK_PASS=false
       else
         if [[ "$(stat -c "%a" "$fluxGitSshPrivateKeyFile")" != "600" ]]; then
-          echo -e "\e[33m[WARNING]\e[0m Flux Git SSH private key file permissions are not 600. Fixing permissions..."
+          echo -e "\e[33mWarning:\e[0m Flux Git SSH private key file permissions are not 600. Fixing permissions..."
           chmod 600 "$fluxGitSshPrivateKeyFile"
         fi
-        ssh-keygen -y -f "$fluxGitSshPrivateKeyFile" -P "$fluxGitSshPrivateKeyPassword" > /dev/null 2>&1;
-        if [[ $? -ne 0 ]]; then
-          echo -e "\e[31mError:\e[0m Flux Git SSH private key file requires a password. Please include \e[35m--flux-git-ssh-private-key-password\e[0m."
-          PARAM_CHECK_PASS=false
-        fi
+        if ! KEY_TEST_RESULT=$(ssh-keygen -y -f "$fluxGitSshPrivateKeyFile" -P "$fluxGitSshPrivateKeyPassword" 2>&1); then          
+          if [[ $KEY_TEST_RESULT =~ "error in libcrypto" ]]; then
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file could read. Check formatting and line endings (LF, not CRLF)\e[0m."
+            PARAM_CHECK_PASS=false
+          elif [[ $KEY_TEST_RESULT =~ "incorrect passphrase" ]] && [[ -z "$fluxGitSshPrivateKeyPassword" ]]; then
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file requires a password. Please include \e[35m--flux-git-ssh-private-key-password\e[0m."
+            PARAM_CHECK_PASS=false
+          elif [[ $KEY_TEST_RESULT =~ "incorrect passphrase" ]]; then
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file password is incorrect. Please check \e[35m--flux-git-ssh-private-key-password\e[0m."
+            PARAM_CHECK_PASS=false
+          else 
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file could not be loaded. Error: $KEY_TEST_RESULT\e[0m."
+            PARAM_CHECK_PASS=false
+          fi        
+        elif KEY_TEST_RESULT_NO_PW=$(ssh-keygen -y -f "$fluxGitSshPrivateKeyFile" -P "" 2>&1) && [[ ! -z "$fluxGitSshPrivateKeyPassword" ]]; then
+            echo -e "\e[33mWarning:\e[0m Flux Git SSH private key file does not require a password but you have provded one anyway. This will be ignored."
+            fluxGitSshPrivateKeyPassword=""
+        fi        
       fi
     elif [[ "$fluxGitAuthMethod" == "https" ]]; then
       if [[ -z "$fluxGitHttpsPassword" ]]; then
@@ -901,6 +936,8 @@ helm upgrade --install metrics-server metrics-server/metrics-server -n kube-syst
 if [[ "$fluxInstall" = true ]]; then
   curl -s https://fluxcd.io/install.sh | sudo bash
   command -v flux >/dev/null && . <(flux completion bash)
+
+  export KUBECONFIG=/etc/kubernetes/admin.conf
 
   if [[ "$fluxGitAuthMethod" == "ssh" ]]; then
     FLUX_BOOTSTRAP_ARGS="--url=ssh://git@$fluxGitHost/$fluxGitOrg/$fluxGitRepo --private-key-file=$fluxGitSshPrivateKeyFile"
