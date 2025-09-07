@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.4.0\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.4.1\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -52,6 +52,7 @@ export k8sLoadBalancerIPRange=""                            # Either a range suc
 export k8sCNI="flannel"                                     # Choose a Kubernetes network plugin.
 export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice however without it MetalLB cannot be deployed until a node is added.
 export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm init command. 
+export k8sKubeadmConfig=""                                  # Path to kubeadm config file. Cannot be used with 'k8sKubeadmOptions'.
 
 # ------------------------------
 # Kubernetes Storage Classes
@@ -73,7 +74,7 @@ export smbSharePath="/shares/smb"                           # Local server only.
 export smbShareName="persistentvolumes"
 export smbUsername=$SUDO_USER
 export smbPassword="password"
-export smbDefaultStorageClass=true                          # Only one storage class should be set as default.
+export smbDefaultStorageClass=false                         # Only one storage class should be set as default.
 
 # ------------------------------
 # Flux
@@ -104,6 +105,7 @@ while [[ $# -gt 0 ]]; do
         --k8s-cni) k8sCNI="$2"; shift; shift;;
         --k8s-allow-master-node-schedule) k8sAllowMasterNodeSchedule="$2"; shift; shift;;
         --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
+        --k8s-kubeadm-config) k8sKubeadmConfig="$2"; shift; shift;;
         --nfs-install-server) nfsInstallServer="$2"; shift; shift;;
         --nfs-server) nfsServer="$2"; shift; shift;;
         --nfs-share-path) nfsSharePath="$2"; shift; shift;;
@@ -259,6 +261,21 @@ if [ $k8sCNI == "none" ]; then
   PARAM_CHECK_WARN=true
 fi
 
+if [[ "$k8sKubeadmOptions" =~ "--config" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--config\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m. Instead use \e[35m--k8s-kubeadm-config <config file>\e[0m.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sKubeadmOptions" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-options\e[0m and \e[35m--k8s-kubeadm-config\e[0m cannot be used at the same time.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -f "$k8sKubeadmConfig" ]]; then
+  echo -e "\e[31mError:\e[0m The file \e[35m$k8sKubeadmConfig\e[0m specfied for \e[35m--k8s-kubeadm-config\e[0m does not exist.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--k8s-load-balancer-ip-range\e[0m is required. Must be a valid IP range or CIDR."
   PARAM_CHECK_PASS=false
@@ -381,6 +398,12 @@ fi
 
 if [[ "$nfsDefaultStorageClass" = true && "$smbDefaultStorageClass" = true ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--smb-default-storage-class\e[0m and \e[35m--nfs-default-storage-class\e[0m cannot both be set to true at the same time.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$nfsDefaultStorageClass" = false && "$smbDefaultStorageClass" = false ]]; then
+  echo -e "\e[32mInfo:\e[0m The default storage class will be set to \e[35msmb\e[0m"
+  smbDefaultStorageClass=true
 fi
 
 if [ $PARAM_CHECK_PASS == false ]; then
@@ -439,10 +462,10 @@ fi
 
 echo -e "\033[32mInstalling prerequisites\033[0m"
 
-sleep 1 # Sleep for a second in case of file locks
+export APT_LOCK="-o DPkg::Lock::Timeout=600"
 
-apt-get update -qq
-apt-get install -qqy apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
+apt-get update -qq $APT_LOCK
+apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
 
 # Add Docker Repository https://docs.docker.com/engine/install/ubuntu/
 
@@ -463,10 +486,8 @@ fi
 
 echo -e "\033[32mInstalling Docker\033[0m"
 
-sleep 1 # Sleep for a second in case of file locks
-
-apt-get update -qq
-apt-get install -qqy docker-ce docker-ce-cli
+apt-get update -qq $APT_LOCK
+apt-get install -qqy $APT_LOCK docker-ce docker-ce-cli
 
 tee /etc/docker/daemon.json >/dev/null <<EOF
 {
@@ -525,10 +546,8 @@ echo -e "\033[32mAdding Kubernetes community repository\033[0m"
 curl -fsSL https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/Release.key | gpg --dearmor -o $KEYRINGS_DIR/kubernetes-apt-keyring.gpg    
 echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
 
-sleep 1 # Sleep for a second in case of file locks
-
-apt-get update -qq
-apt-get install -qqy kubelet kubeadm kubectl
+apt-get update -qq $APT_LOCK
+apt-get install -qqy $APT_LOCK kubelet kubeadm kubectl
 
 # Configuring Prerequisite
 
@@ -574,7 +593,15 @@ fi
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
 
-kubeadm init --apiserver-advertise-address=$ipAddress --pod-network-cidr=10.244.0.0/16 $k8sKubeadmOptions
+if [[ -z "$k8sKubeadmConfig" ]]; then
+  export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=10.244.0.0/16 $k8sKubeadmOptions"
+else
+  echo -e "\033[32mValidating kubeadm config file\033[0m"
+  kubeadm config validate --config $k8sKubeadmConfig
+  export KUBEADM_ARGS="--config $k8sKubeadmConfig"
+fi
+
+kubeadm init $KUBEADM_ARGS
 
 # Setup kube config files.
 
@@ -659,24 +686,21 @@ elif [ $k8sCNI == "cilium" ]; then
 
   # Get Cilium status (Not all pods start up unless taint is removed)
   
-  if [ $k8sAllowMasterNodeSchedule == true ]; then
-    cilium upgrade --reuse-values \
-      --set hubble.relay.tolerations[0].key=node-role.kubernetes.io/control-plane \
-      --set hubble.relay.tolerations[0].operator=Exists \
-      --set hubble.relay.tolerations[0].effect=NoSchedule \
-      --set hubble.relay.tolerations[1].key=node-role.kubernetes.io/master \
-      --set hubble.relay.tolerations[1].operator=Exists \
-      --set hubble.relay.tolerations[1].effect=NoSchedule \
-      --set hubble.ui.tolerations[0].key=node-role.kubernetes.io/control-plane \
-      --set hubble.ui.tolerations[0].operator=Exists \
-      --set hubble.ui.tolerations[0].effect=NoSchedule \
-      --set hubble.ui.tolerations[1].key=node-role.kubernetes.io/master \
-      --set hubble.ui.tolerations[1].operator=Exists \
-      --set hubble.ui.tolerations[1].effect=NoSchedule
-    cilium status --wait 
-  else
-    cilium status
-  fi
+  cilium upgrade --reuse-values \
+    --set hubble.relay.tolerations[0].key=node-role.kubernetes.io/control-plane \
+    --set hubble.relay.tolerations[0].operator=Exists \
+    --set hubble.relay.tolerations[0].effect=NoSchedule \
+    --set hubble.relay.tolerations[1].key=node-role.kubernetes.io/master \
+    --set hubble.relay.tolerations[1].operator=Exists \
+    --set hubble.relay.tolerations[1].effect=NoSchedule \
+    --set hubble.ui.tolerations[0].key=node-role.kubernetes.io/control-plane \
+    --set hubble.ui.tolerations[0].operator=Exists \
+    --set hubble.ui.tolerations[0].effect=NoSchedule \
+    --set hubble.ui.tolerations[1].key=node-role.kubernetes.io/master \
+    --set hubble.ui.tolerations[1].operator=Exists \
+    --set hubble.ui.tolerations[1].effect=NoSchedule  
+  
+  cilium status --wait
 fi
 
 # Install Helm
@@ -692,7 +716,7 @@ export INSTALL_NFS_DRIVER=false # Do not edit. Will be set to true if required
 if [ $nfsInstallServer == true ]; then
   echo -e "\033[32mInstall NFS File Server\033[0m"
 
-  apt install -qqy nfs-kernel-server
+  apt-get install -qqy $APT_LOCK nfs-kernel-server
   export NFS_CONFIG_FILE="/etc/exports"  
   if ! grep -q "$nfsSharePath" "$NFS_CONFIG_FILE"; then
     mkdir -p $nfsSharePath
@@ -756,7 +780,7 @@ export INSTALL_SMB_DRIVER=false # Do not edit. Will be set to true if required
 if [ $smbInstallServer == true ]; then
   echo -e "\033[32mInstall SMB File Server\033[0m"
 
-  apt install -qqy samba
+  apt-get install -qqy $APT_LOCK samba
   export SMB_CONFIG_FILE="/etc/samba/smb.conf"  
   if ! grep -q "$smbShareName" "$SMB_CONFIG_FILE"; then
     mkdir -p $smbSharePath
@@ -819,13 +843,19 @@ fi
 
 # Install MetalLB https://metallb.universe.tf/installation/
 
-if [[ $k8sAllowMasterNodeSchedule == true && $k8sCNI != "none" ]]; then
+if [[ $k8sCNI != "none" ]]; then
   echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
   kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb
   helm repo update
-  helm upgrade -i metallb metallb/metallb -n metallb-system --wait
+  helm upgrade --install metallb metallb/metallb -n metallb-system --wait \
+    --set controller.tolerations[0].key=node-role.kubernetes.io/control-plane \
+    --set controller.tolerations[0].operator=Exists \
+    --set controller.tolerations[0].effect=NoSchedule \
+    --set controller.tolerations[1].key=node-role.kubernetes.io/master \
+    --set controller.tolerations[1].operator=Exists \
+    --set controller.tolerations[1].effect=NoSchedule
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
   export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
@@ -849,7 +879,7 @@ EOF
   kubectl apply -f $METALLB_IPPOOL_L2AD -n metallb-system
   rm $METALLB_IPPOOL_L2AD
 else
-  echo -e "\033[33mSkipping Metal LB step. You will need to run this manually once you've added another node in order to access your pods from your local network.\033[0m"
+  echo -e "\033[33mSkipping Metal LB step. You will need to run this manually once you've installed a CNI in order to access your pods from your local network.\033[0m"
 fi
 
 # Install Metrics Server
@@ -857,7 +887,14 @@ fi
 echo -e "\033[32mInstall Metrics Server\033[0m"
 
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system --set args={--kubelet-insecure-tls} --wait
+helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system \
+  --set args={--kubelet-insecure-tls} \
+  --set tolerations[0].key=node-role.kubernetes.io/control-plane \
+  --set tolerations[0].operator=Exists \
+  --set tolerations[0].effect=NoSchedule \
+  --set tolerations[1].key=node-role.kubernetes.io/master \
+  --set tolerations[1].operator=Exists \
+  --set tolerations[1].effect=NoSchedule    
 
 # Install and bootstrap Flux CD
 
