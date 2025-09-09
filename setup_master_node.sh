@@ -77,7 +77,7 @@ export smbSharePath="/shares/smb"                           # Local server only.
 export smbShareName="persistentvolumes"
 export smbUsername=$SUDO_USER
 export smbPassword="password"
-export smbDefaultStorageClass=true                          # Only one storage class should be set as default.
+export smbDefaultStorageClass=false                         # Only one storage class should be set as default.
 
 # ------------------------------
 # Flux
