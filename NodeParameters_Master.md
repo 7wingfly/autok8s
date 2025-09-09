@@ -14,7 +14,9 @@ Parameter values which are wraped in quotes must include the quotes when applied
 |`--default-gateway`|The default gateway to use.|-|`192.168.0.1`|When `--configure-tcpip` is `true`|
 |`--dns-servers`|The DNS servers to use.|`"8.8.8.8 4.4.4.4"`|`"192.168.0.2 192.168.0.3"`|No|
 |`--dns-search`|The local DNS search domains.|`"domain.local"`|`"example.com domain.internal"`|No|
+|`--k8s-cluster-name`|The name given to the cluster.|`kubernetes`|`cluster01`|No|
 |`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.25.0-00`|No|
+|`--k8s-pod-network-cidr`|The CIDR for pod network.|`10.244.0.0/16`|`10.244.0.0/16`|No|
 |`--k8s-load-balancer-ip-range`|The IP range or CIDR for Kubernetes load balancer.|-|`192.168.0.10-192.168.0.15`<br>or<br>`192.168.0.1/24`|Yes|
 |`--k8s-cni`|The Kubernetes network plugin to install.|`flannel`|`cilium` or `none`|No|
 |`--k8s-allow-master-node-schedule`|Set to `true` to allow master node to schedule pods.|`true`|`false`|No|
@@ -135,7 +137,7 @@ Example Usage - Additional kubeadm init options
 > **IMPORTANT:**
 > - **Do not** include `--apiserver-advertise-address` or `--pod-network-cidr` as these are already set in the script. 
 > - **Do not** include `--config` as this conflicts with the above. You should instead use `--k8s-kubeadm-config` to pass in your config file.
-> - Note that `--k8s-kubeadm-config` and `--k8s-kubeadm-options` cannot be used at the same time.
+> - Note that `--k8s-kubeadm-config` and `--k8s-kubeadm-options` used together may cause errors during initialization.
 >
 > Available options for `kubeadm init` [here](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/).
 
