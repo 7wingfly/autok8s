@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.4.1\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.5.0\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -47,12 +47,15 @@ export dnsSearch=("domain.local")                           # Your local DNS sea
 # Kubernetes
 # ------------------------------
 #
-export k8sVersion="latest"                                  # You can specify a specific version such as "1.25.0-00".
-export k8sLoadBalancerIPRange=""                            # Either a range such as "192.168.0.100-192.168.0.150" or a CIDR (Add /32 for a single IP).
+export k8sClusterName="kubernetes"                          # Name of your Kubernetes cluster. Cannot be used with 'k8sKubeadmConfig'.
+export k8sVersion="latest"                                  # You can specify a specific version such as "1.34.0-00".
+export k8sPodNetworkCIDR="10.244.0.0/16"                    # Pod network CIDR. Cannot be used with 'k8sKubeadmConfig'.
+export k8sServiceCIDR="10.96.0.0/12"                        # Service network CIDR. Cannot be used with 'k8sKubeadmConfig'.
+export k8sLoadBalancerIPRange=""                            # Either a range such as "192.168.0.100-192.168.0.150" or a CIDR.
 export k8sCNI="flannel"                                     # Choose a Kubernetes network plugin.
-export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice however without it MetalLB cannot be deployed until a node is added.
-export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm init command. 
-export k8sKubeadmConfig=""                                  # Path to kubeadm config file. Cannot be used with 'k8sKubeadmOptions'.
+export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice if you're only going to have a single node.
+export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm init command. Do not include --config, --apiserver-advertise-address, --pod-network-cidr or --service-cidr.
+export k8sKubeadmConfig=""                                  # Path to kubeadm config file. Cannot be used with 'k8sClusterName', 'k8sPodNetworkCIDR' or 'k8sServiceCIDR'.
 
 # ------------------------------
 # Kubernetes Storage Classes
@@ -90,7 +93,10 @@ while [[ $# -gt 0 ]]; do
         --default-gateway) defaultGateway="$2"; shift; shift;;
         --dns-servers) dnsServers=($2); shift; shift;;
         --dns-search) dnsSearch=($2); shift; shift;;
+        --k8s-cluster-name) k8sClusterName="$2"; shift; shift;;
         --k8s-version) k8sVersion="$2"; shift; shift;;
+        --k8s-pod-network-cidr) k8sPodNetworkCIDR="$2"; shift; shift;;
+        --k8s-service-cidr) k8sServiceCIDR="$2"; shift; shift;;
         --k8s-load-balancer-ip-range) k8sLoadBalancerIPRange="$2"; shift; shift;;
         --k8s-cni) k8sCNI="$2"; shift; shift;;
         --k8s-allow-master-node-schedule) k8sAllowMasterNodeSchedule="$2"; shift; shift;;
@@ -227,8 +233,29 @@ if [[ ! $k8sVersion =~ ^(latest)$|^[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
 fi
 
 if [[ ! $k8sCNI =~ ^(flannel|cilium|none)$ ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--k8s-cni\e[0m value \e[35m$k8sVersion\e[0m is not valid. Options are: flannel, none."
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-cni\e[0m value \e[35m$k8sCNI\e[0m is not valid. Options are: \e[35mflannel\e[0m (default), \e[35mcilium\e[0m or \e[35mnone\e[0m."
     PARAM_CHECK_PASS=false
+fi
+
+if [[ ! $k8sPodNetworkCIDR =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-pod-network-cidr\e[0m value \e[35m$k8sPodNetworkCIDR\e[0m is not a valid CIDR."
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ ! $k8sServiceCIDR =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-service-cidr\e[0m value \e[35m$k8sServiceCIDR\e[0m is not a valid CIDR."
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ ! "$k8sClusterName" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-cluster-name\e[0m value \e[35m$k8sClusterName\e[0m is invalid."
+  PARAM_CHECK_PASS=false
+elif [[ "$k8sCNI" == "cilium" && "$k8sClusterName" =~ [A-Z] ]]; then
+  echo -e "\e[31mError:\e[0m The cluster name must be lower case when using Cilium CNI."
+  PARAM_CHECK_PASS=false
+elif [[ "$k8sClusterName" =~ [A-Z] ]]; then
+  echo -e "\e[33mWarning:\e[0m Your cluster name contains uppercase characters. You may experience issues if you later change your CNI to Cilium."
+  PARAM_CHECK_WARN=true
 fi
 
 if [ $k8sCNI == "none" ]; then
@@ -241,14 +268,44 @@ if [[ "$k8sKubeadmOptions" =~ "--config" ]]; then
   PARAM_CHECK_PASS=false
 fi
 
-if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sKubeadmOptions" ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-options\e[0m and \e[35m--k8s-kubeadm-config\e[0m cannot be used at the same time.\e[0m"
+if [[ "$k8sKubeadmOptions" =~ "--apiserver-advertise-addres" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--apiserver-advertise-address\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m as it's already set from current IP or \e[35m--ip-address\e[0m.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$k8sKubeadmOptions" =~ "--pod-network-cidr" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--pod-network-cidr\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m as it's already included. Pass in with \e[35m--k8s-pod-network-cidr\e[0m instead.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$k8sKubeadmOptions" =~ "--service-cidr" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--service-cidr\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m as it's already included. Pass in with \e[35m--k8s-service-cidr\e[0m instead.\e[0m"
   PARAM_CHECK_PASS=false
 fi
 
 if [[ ! -z "$k8sKubeadmConfig" && ! -f "$k8sKubeadmConfig" ]]; then
   echo -e "\e[31mError:\e[0m The file \e[35m$k8sKubeadmConfig\e[0m specfied for \e[35m--k8s-kubeadm-config\e[0m does not exist.\e[0m"
   PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && "$k8sPodNetworkCIDR" != "10.244.0.0/16" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-pod-network-cidr\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && "$k8sServiceCIDR" != "10.96.0.0/12" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-service-cidr\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && "$k8sClusterName" != "kubernetes" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-cluster-name\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sKubeadmOptions" ]]; then
+  echo -e "\e[33mWarning:\e[0m Using \e[35m--k8s-kubeadm-config\e[0m with \e[35m--k8s-kubeadm-options\e[0m may cause kubeadm init to fail depending on the options used.\e[0m"
+  PARAM_CHECK_WARN=true
 fi
 
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
@@ -319,13 +376,8 @@ if [[ -n "$smbServer" && ! $smbServer =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$ 
 fi
 
 if [[ "$nfsDefaultStorageClass" = true && "$smbDefaultStorageClass" = true ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--smb-default-storage-class\e[0m and \e[35m--nfs-default-storage-class\e[0m cannot both be set to true at the same time.\e[0m"
+  echo -e "\e[31mError:\e[0m \e[35m--smb-default-storage-class\e[0m and \e[35m--nfs-default-storage-class\e[0m cannot both be set to \e[35mtrue\e[0m at the same time.\e[0m"
   PARAM_CHECK_PASS=false
-fi
-
-if [[ "$nfsDefaultStorageClass" = false && "$smbDefaultStorageClass" = false ]]; then
-  echo -e "\e[32mInfo:\e[0m The default storage class will be set to \e[35msmb\e[0m"
-  smbDefaultStorageClass=true
 fi
 
 if [ $PARAM_CHECK_PASS == false ]; then
@@ -335,6 +387,15 @@ fi
 if [ $PARAM_CHECK_WARN == true ]; then
   sleep 10
 fi
+
+if [[ "$nfsDefaultStorageClass" = false && "$smbDefaultStorageClass" = false ]]; then
+  echo -e "\e[32mInfo:\e[0m The default storage class will be set to \e[35msmb\e[0m"
+  smbDefaultStorageClass=true
+fi
+
+echo -e "\e[32mInfo:\e[0m The cluster name will be \e[35m$k8sClusterName\e[0m"
+echo -e "\e[32mInfo:\e[0m The pod network will be \e[35m$k8sPodNetworkCIDR\e[0m"
+echo -e "\e[32mInfo:\e[0m The service network will be \e[35m$k8sServiceCIDR\e[0m"
 
 # Install Kubernetes
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -513,17 +574,35 @@ fi
 
 # Init Kubernetes https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
 
-echo -e "\033[32mInitilizing Kubernetes\033[0m"
+if [[ -z "$k8sKubeadmConfig" && "$k8sClusterName" == "kubernetes" ]]; then  
+  export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=$k8sPodNetworkCIDR --service-cidr=$k8sServiceCIDR"
+else 
+  if [[ -z "$k8sKubeadmConfig" ]]; then
+    export k8sKubeadmConfig="/tmp/kubeadm-config.yaml"
+    cat <<EOF > $k8sKubeadmConfig
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: "$ipAddress"
+  bindPort: 6443
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+clusterName: "$k8sClusterName"
+networking:
+  podSubnet: "$k8sPodNetworkCIDR"
+  serviceSubnet: "$k8sServiceCIDR"
 
-if [[ -z "$k8sKubeadmConfig" ]]; then
-  export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=10.244.0.0/16 $k8sKubeadmOptions"
-else
+EOF
+  fi
   echo -e "\033[32mValidating kubeadm config file\033[0m"
   kubeadm config validate --config $k8sKubeadmConfig
   export KUBEADM_ARGS="--config $k8sKubeadmConfig"
 fi
 
-kubeadm init $KUBEADM_ARGS
+echo -e "\033[32mInitilizing Kubernetes\033[0m"
+
+kubeadm init $KUBEADM_ARGS $k8sKubeadmOptions
 
 # Setup kube config files.
 
