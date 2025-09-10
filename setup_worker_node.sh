@@ -51,9 +51,9 @@ export dnsSearch=("domain.local")                           # Your local DNS sea
 export k8sVersion="latest"
 export k8sMasterIP=""
 export k8sMasterPort="6443"
-export k8sToken=""                                          # This and the cert hash can be found by running 'kubeadm token create --print-join-command'
-export k8sTokenDiscoveryCaCertHash=""                       # on the master node
-export k8sKubeadmOptions=""                                   # Additional options you can pass into the kubeadm join command.
+export k8sToken=""                                          # This and the cert hash can be found by running 'kubeadm token create --print-join-command' on the master node
+export k8sTokenDiscoveryCaCertHash=""                       
+export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm join command.
 
 # ------------------------------
 # Parameters

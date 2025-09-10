@@ -31,9 +31,24 @@ Parameter values which are wraped in quotes must include the quotes when applied
 |`--smb-server`|The SMB server to use.|`$HOSTNAME`|`192.168.0.100`|When `--smb-install-server` is `true`|
 |`--smb-share-path`|The SMB share path to use.|`/shares/smb`|`/mnt/smb`|When `--smb-install-server` is `true`|
 |`--smb-share-name`|The name of the SMB share.|`persistentvolumes`|`pv`|When `--smb-install-server` is `true`|
-|`--smb-username`|The username for the SMB share.|`$SUDO_USER`|`john`|No|
-|`--smb-password`|The password for the SMB share.|`password`|`mypass`|No|
+|`--smb-username`|The username for the SMB share.|`$SUDO_USER`|`benjamin`|No|
+|`--smb-password`|The password for the SMB share.|`password`|`password123`|No|
 |`--smb-default-storage-class`|Set to `true` to use SMB as the default storage class.|`true`|`false`|No|
+|`--flux-install`|Set to `true` to install and bootstrap flux.|`false`|`true`|No|
+|`--flux-git-host`|The hostname of your git server.|`github.com`|`bitbucket.org`|When `--flux-install` is `true`.|
+|`--flux-git-org`|Organisation i.e. your GitHub org or username.|-|`7wingfly` or `mycorp`|When `--flux-install` is `true`.|
+|`--flux-git-repo`|Name of the git repo.|-|`GitOps`|When `--flux-install` is `true`.|
+|`--flux-git-branch`|Branch to work from.|`main`|`master`|When `--flux-install` is `true`.|
+|`--flux-git-path`|Directory in repo for the clusters configuration files.|`clusters/<cluster_name>` if `--k8s-cluster-name` is used otherwise `clusters/<hostname>`|`clusters/prod-ukwest-01`|No|
+|`--flux-git-auth-method`|The method by which Flux should authenticate to your git server.|-|`ssh` or `https`|When `--flux-install` is `true`.|
+|`--flux-git-ssh-private-key-file`|Path to your private key file.|-|`/path/to/key.pem`|When `--flux-git-auth-method` is `ssh`.|
+|`--flux-git-ssh-private-key-password`|Password for your private key file if required.|-|`password123`|If the private key file has a password.|
+|`--flux-git-https-username`|Username for git server.|-|`7wingfly`|When `--flux-git-auth-method` is `https`.|
+|`--flux-git-https-password`|Password or PAT token of git account.|-|`github_pat_<token>`|No|
+|`--flux-git-https-use-token-auth`|Adds `--token-auth=true` to bootstrap command.|`false`|`true`|When `--flux-git-auth-method` is `https` and `--flux-git-https-use-bearer-token` is `false`|
+|`--flux-git-https-use-bearer-token`|Adds `--with-bearer-token` to bootstrap command.|`false`|`true`|When `--flux-git-auth-method` is `https` and `--flux-git-https-use-token-auth` is `false`|
+|`--flux-git-https-ca-file`|Specifies CA certificate file to use when accessing self-hosted git server.|-|`/path/to/ca.crt`|No|
+|`--flux-options`|Additional options to pass into the `flux bootstrap git` command.|-|`--allow-insecure-http`|No|
 <br>
 
 ## Notes
