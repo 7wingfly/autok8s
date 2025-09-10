@@ -88,7 +88,7 @@ export fluxGitHost="github.com"
 export fluxGitBranch="main"
 export fluxGitOrg=""
 export fluxGitRepo=""
-export fluxGitPath=""
+export fluxGitPath=""                                       # Will default to 'clusters/<k8sClusterName>' or 'clusters/<hostname> if cluster name is not specified.
 export fluxGitHttpsUseTokenAuth=false
 export fluxGitHttpsUseBearerToken=false
 export fluxGitAuthMethod=""
@@ -424,10 +424,6 @@ elif [[ "$fluxInstall" = true ]]; then
   fi
   if [[ -z "$fluxGitRepo" ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--flux-git-repo\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m."
-    PARAM_CHECK_PASS=false
-  fi
-  if [[ -z "$fluxGitPath" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--flux-git-path\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m. This would typically be something like \e[35mclusters/my-cluster\e[0m."
     PARAM_CHECK_PASS=false
   fi
   if [[ -z "$fluxGitAuthMethod" ]]; then
@@ -1048,6 +1044,14 @@ if [[ "$fluxInstall" = true ]]; then
     fi
   fi
 
+  if [[ -z "$fluxGitPath" ]]; then
+    if [[ "$k8sClusterName" == "kubernetes" ]]; then
+      fluxGitPath="clusters/$hostname_lower"
+    else
+      fluxGitPath="clusters/$k8sClusterName"
+    fi
+  fi
+
   flux bootstrap git $FLUX_BOOTSTRAP_ARGS --branch=$fluxGitBranch --path=$fluxGitPath --silent $fluxOptions
 fi
 
@@ -1071,4 +1075,4 @@ echo -e "curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_w
     --k8s-master-ip $JOIN_IP \\
     --k8s-master-port $JOIN_PORT \\
     --token $JOIN_TOKEN \\
-    --discovery-token-ca-cert-hash $JOIN_CERT_HASH\n"
+    --discovery-token-ca-cert-hash $JOIN_CERT_HASH\n\033[0m"
