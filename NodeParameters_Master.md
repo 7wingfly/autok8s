@@ -48,7 +48,7 @@ Parameter values which are wraped in quotes must include the quotes when applied
 |`--flux-git-https-use-token-auth`|Adds `--token-auth=true` to bootstrap command.|`false`|`true`|When `--flux-git-auth-method` is `https` and `--flux-git-https-use-bearer-token` is `false`|
 |`--flux-git-https-use-bearer-token`|Adds `--with-bearer-token` to bootstrap command.|`false`|`true`|When `--flux-git-auth-method` is `https` and `--flux-git-https-use-token-auth` is `false`|
 |`--flux-git-https-ca-file`|Specifies CA certificate file to use when accessing self-hosted git server.|-|`/path/to/ca.crt`|No|
-|`--flux-options`|Additional options to pass into the `flux bootstrap git` command.|-|`--allow-insecure-http`|No|
+|`--flux-options`|Additional options to pass into the `flux bootstrap git` command.|-|`"--allow-insecure-http"`|No|
 <br>
 
 ## Notes
