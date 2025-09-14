@@ -1,9 +1,9 @@
 
----
 ### 1.6.0
 *September 14th 2025*
 
 - Add support for Flux CD !
+- Update documentation: wording, formatting, spelling mistakes and references.
 
 ---
 ### 1.5.0
