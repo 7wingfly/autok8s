@@ -1002,7 +1002,7 @@ else
   echo -e "\033[33mSkipping Metal LB step. You will need to run this manually once you've installed a CNI in order to access your pods from your local network.\033[0m"
 fi
 
-# Install Metrics Server
+# Install Metrics Server https://github.com/kubernetes-sigs/metrics-server/blob/master/README.md
 
 echo -e "\033[32mInstall Metrics Server\033[0m"
 
@@ -1016,7 +1016,7 @@ helm upgrade --install metrics-server metrics-server/metrics-server -n kube-syst
   --set tolerations[1].operator=Exists \
   --set tolerations[1].effect=NoSchedule    
 
-# Install and bootstrap Flux CD
+# Install and bootstrap Flux CD https://fluxcd.io/flux/cmd/flux_bootstrap_git/
 
 if [[ "$fluxInstall" = true ]]; then
   echo -e "\033[32mInstalling Flux CLI\033[0m"
