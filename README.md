@@ -56,7 +56,7 @@ Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
 - Installs Metrics Server via Helm chart.
 
-- Installs and bootstraps Flux CD <new style="color: #ccff3fff; font-weight: 700">NEW!</new> (Optional, requires access to a git repo) 
+- Installs and bootstraps Flux CD ***<new style="color: #ccff3fff">[NEW!]</new>*** (Optional, requires access to a git repo) 
 
 - Prints a message containing the command and parameters for joining a node to the cluster using the AutoK8s `setup_worker_node.sh` script.
 
