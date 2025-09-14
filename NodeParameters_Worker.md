@@ -35,7 +35,7 @@ The `--token` and `--discovery-token-ca-cert-hash` parameters should be exactly 
 <br>
 Example Usage - Minimum Required:
 
-```
+```bash
 ./setup_worker_node.sh \
     --k8s-master-ip 192.168.0.230 \    
     --token fbdzi9.5yedbdve20r \
@@ -45,7 +45,7 @@ Example Usage - Minimum Required:
 <br>
 Example Usage - Additional kubeadm join options
 
-```
+```bash
 ./setup_master_node.sh \  
     --k8s-kubeadm-options "--ignore-preflight-errors=all" 
 ```
@@ -54,7 +54,7 @@ Example Usage - Additional kubeadm join options
 <br>
 Example Usage - All:
 
-```
+```bash
 ./setup_worker_node.sh \
     --configure-tcpip true \
     --interface ens160 \

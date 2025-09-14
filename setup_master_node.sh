@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.5.0\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.6.0\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -77,7 +77,27 @@ export smbSharePath="/shares/smb"                           # Local server only.
 export smbShareName="persistentvolumes"
 export smbUsername=$SUDO_USER
 export smbPassword="password"
-export smbDefaultStorageClass=false                          # Only one storage class should be set as default.
+export smbDefaultStorageClass=false                         # Only one storage class should be set as default.
+
+# ------------------------------
+# Flux
+# ------------------------------
+#
+export fluxInstall=false
+export fluxGitHost="github.com"
+export fluxGitBranch="main"
+export fluxGitOrg=""
+export fluxGitRepo=""
+export fluxGitPath=""                                       # Will default to 'clusters/<k8sClusterName>' or 'clusters/<hostname> if cluster name is not specified.
+export fluxGitHttpsUseTokenAuth=false
+export fluxGitHttpsUseBearerToken=false
+export fluxGitAuthMethod=""
+export fluxGitSshPrivateKeyFile=""
+export fluxGitHttpsUsername=""
+export fluxGitHttpsPassword=""
+export fluxGitHttpsCAFile=""
+export fluxGitSshPrivateKeyPassword=""
+export fluxOptions=""
 
 # ------------------------------
 # Parameters
@@ -113,6 +133,21 @@ while [[ $# -gt 0 ]]; do
         --smb-username) smbUsername="$2"; shift; shift;;
         --smb-password) smbPassword="$2"; shift; shift;;
         --smb-default-storage-class) smbDefaultStorageClass="$2"; shift; shift;;
+        --flux-install) fluxInstall="$2"; shift; shift;;
+        --flux-git-host) fluxGitHost="$2"; shift; shift;;
+        --flux-git-org) fluxGitOrg="$2"; shift; shift;;
+        --flux-git-repo) fluxGitRepo="$2"; shift; shift;;
+        --flux-git-branch) fluxGitBranch="$2"; shift; shift;;
+        --flux-git-path) fluxGitPath="$2"; shift; shift;;
+        --flux-git-auth-method) fluxGitAuthMethod="$2"; shift; shift;;
+        --flux-git-ssh-private-key-file) fluxGitSshPrivateKeyFile="$2"; shift; shift;;
+        --flux-git-ssh-private-key-password) fluxGitSshPrivateKeyPassword="$2"; shift; shift;;
+        --flux-git-https-username) fluxGitHttpsUsername="$2"; shift; shift;;
+        --flux-git-https-password) fluxGitHttpsPassword="$2"; shift; shift;;
+        --flux-git-https-use-token-auth) fluxGitHttpsUseTokenAuth="$2"; shift; shift;;
+        --flux-git-https-use-bearer-token) fluxGitHttpsUseBearerToken="$2"; shift; shift;;
+        --flux-git-https-ca-file) fluxGitHttpsCAFile="$2"; shift; shift;;
+        --flux-options) fluxOptions="$2"; shift; shift;;  
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
 done
@@ -373,6 +408,90 @@ fi
 if [[ -n "$smbServer" && ! $smbServer =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$ ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--smb-server\e[0m value \e[35m$smbServer\e[0m is not a valid hostname."
   PARAM_CHECK_PASS=false
+fi
+
+if [[ ! "$fluxInstall" =~ ^(true|false)$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--install-flux\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+  PARAM_CHECK_PASS=false
+elif [[ "$fluxInstall" = true ]]; then
+  if [[ -z "$fluxGitOrg" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-org\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m. If you are not part of an organisation, use your username."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$fluxGitRepo" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-repo\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$fluxGitRepo" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-repo\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$fluxGitAuthMethod" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-auth-method\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false  
+  elif [[ ! "$fluxGitAuthMethod" =~ ^(ssh|https)$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-auth-method\e[0m must be set to either \e[35mssh\e[0m or \e[35mhttps\e[0m."
+    PARAM_CHECK_PASS=false
+  else
+    if [[ "$fluxGitAuthMethod" == "ssh" ]]; then      
+      if [[ -z "$fluxGitSshPrivateKeyFile" ]]; then
+        echo -e "\e[31mError:\e[0m \e[35m--flux-git-ssh-private-key-file\e[0m is required if \e[35m--flux-git-auth-method\e[0m is set to \e[35mssh\e[0m."
+        PARAM_CHECK_PASS=false
+      elif [[ ! -f "$fluxGitSshPrivateKeyFile" ]]; then
+        echo -e "\e[31mError:\e[0m Flux Git SSH private key file not found: \e[35m$fluxGitSshPrivateKeyFile\e[0m. Please check \e[35m--flux-git-ssh-private-key-file\e[0m."
+        PARAM_CHECK_PASS=false
+      else
+        if [[ "$(stat -c "%a" "$fluxGitSshPrivateKeyFile")" != "600" ]]; then
+          echo -e "\e[33mWarning:\e[0m Flux Git SSH private key file permissions are not 600. Fixing permissions..."
+          chmod 600 "$fluxGitSshPrivateKeyFile"
+        fi
+        if ! KEY_TEST_RESULT=$(ssh-keygen -y -f "$fluxGitSshPrivateKeyFile" -P "$fluxGitSshPrivateKeyPassword" 2>&1); then          
+          if [[ $KEY_TEST_RESULT =~ "error in libcrypto" ]]; then
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file could read. Check formatting and line endings (LF, not CRLF)\e[0m."
+            PARAM_CHECK_PASS=false
+          elif [[ $KEY_TEST_RESULT =~ "incorrect passphrase" ]] && [[ -z "$fluxGitSshPrivateKeyPassword" ]]; then
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file requires a password. Please include \e[35m--flux-git-ssh-private-key-password\e[0m."
+            PARAM_CHECK_PASS=false
+          elif [[ $KEY_TEST_RESULT =~ "incorrect passphrase" ]]; then
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file password is incorrect. Please check \e[35m--flux-git-ssh-private-key-password\e[0m."
+            PARAM_CHECK_PASS=false
+          else 
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file could not be loaded. Error: $KEY_TEST_RESULT\e[0m."
+            PARAM_CHECK_PASS=false
+          fi        
+        elif KEY_TEST_RESULT_NO_PW=$(ssh-keygen -y -f "$fluxGitSshPrivateKeyFile" -P "" 2>&1) && [[ ! -z "$fluxGitSshPrivateKeyPassword" ]]; then
+            echo -e "\e[33mWarning:\e[0m Flux Git SSH private key file does not require a password but you have provded one anyway. This will be ignored."
+            fluxGitSshPrivateKeyPassword=""
+        fi        
+      fi
+    elif [[ "$fluxGitAuthMethod" == "https" ]]; then
+      if [[ -z "$fluxGitHttpsPassword" ]]; then
+        echo -e "\e[31mError:\e[0m \e[35m--flux-git-https-password\e[0m is required if \e[35m--flux-git-auth-method\e[0m is set to \e[35mhttp\e[0m."
+        PARAM_CHECK_PASS=false
+      fi      
+      if [[ ! "$fluxGitHttpsUseTokenAuth" =~ ^(true|false)$ ]]; then
+        echo -e "\e[31mError:\e[0m \e[35m--flux-git-https-use-token-auth\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+        PARAM_CHECK_PASS=false
+      elif [[ ! "$fluxGitHttpsUseBearerToken" =~ ^(true|false)$ ]]; then
+        echo -e "\e[31mError:\e[0m \e[35m--flux-git-https-use-bearer-token\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+        PARAM_CHECK_PASS=false
+      elif [[ "$fluxGitHttpsUseTokenAuth" == true && "$fluxGitHttpsUseBearerToken" == true ]]; then
+        echo -e "\e[31mError:\e[0m Cannot set both \e[35m--flux-git-https-use-token-auth\e[0m and \e[35m--flux-git-https-use-bearer-token\e[0m to true\e[0m.."
+        PARAM_CHECK_PASS=false
+      elif [[ "$fluxGitHttpsUseBearerToken" = false ]] && [[ -z "$fluxGitHttpsUsername" ]]; then
+        echo -e "\e[31mError:\e[0m \e[35m--flux-git-https-username\e[0m is required when \e[35m--flux-git-https-use-bearer-token\e[0m is \e[35mfalse\e[0m."
+        PARAM_CHECK_PASS=false
+      fi
+      if [[ -n "$fluxGitHttpsCAFile" ]] && [[ ! -f "$fluxGitHttpsCAFile" ]]; then
+        echo -e "\e[31mError:\e[0m Flux Git CA file not found: \e[35m$fluxGitHttpsCAFile\e[0m. Please check \e[35m--flux-git-https-ca-file\e[0m."
+        PARAM_CHECK_PASS=false
+      fi
+      if [[ "$fluxGitHost" == "github.com" && "$fluxGitHttpsUseTokenAuth" == false && "$fluxGitHttpsUseBearerToken" == false ]]; then
+        echo -e "\e[31mError:\e[0m When connecting to GitHub via HTTPS you must set either \e[35m--flux-git-https-use-token-auth true\e[0m or \e[35m--flux-git-https-use-bearer-token true\e[0m."
+        PARAM_CHECK_PASS=false
+      fi
+    fi
+  fi
 fi
 
 if [[ "$nfsDefaultStorageClass" = true && "$smbDefaultStorageClass" = true ]]; then
@@ -883,7 +1002,7 @@ else
   echo -e "\033[33mSkipping Metal LB step. You will need to run this manually once you've installed a CNI in order to access your pods from your local network.\033[0m"
 fi
 
-# Install Metrics Server
+# Install Metrics Server https://github.com/kubernetes-sigs/metrics-server/blob/master/README.md
 
 echo -e "\033[32mInstall Metrics Server\033[0m"
 
@@ -896,6 +1015,54 @@ helm upgrade --install metrics-server metrics-server/metrics-server -n kube-syst
   --set tolerations[1].key=node-role.kubernetes.io/master \
   --set tolerations[1].operator=Exists \
   --set tolerations[1].effect=NoSchedule    
+
+# Install and bootstrap Flux CD https://fluxcd.io/flux/cmd/flux_bootstrap_git/
+
+if [[ "$fluxInstall" = true ]]; then
+  echo -e "\033[32mInstalling Flux CLI\033[0m"
+
+  curl -s https://fluxcd.io/install.sh | sudo bash
+  command -v flux >/dev/null && . <(flux completion bash)
+
+  echo -e "\033[32mStarting Flux Bootstrap\033[0m"  
+
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+
+  if [[ "$fluxGitAuthMethod" == "ssh" ]]; then
+    FLUX_BOOTSTRAP_ARGS="--url=ssh://git@$fluxGitHost/$fluxGitOrg/$fluxGitRepo --private-key-file=$fluxGitSshPrivateKeyFile"
+    if [[ -n "$fluxGitSshPrivateKeyPassword" ]]; then
+      FLUX_BOOTSTRAP_ARGS="$FLUX_BOOTSTRAP_ARGS --password=$fluxGitSshPrivateKeyPassword"
+    fi
+  elif [[ "$fluxGitAuthMethod" == "https" ]]; then
+    FLUX_BOOTSTRAP_ARGS="--url=https://$fluxGitHost/$fluxGitOrg/$fluxGitRepo --password=$fluxGitHttpsPassword"
+    if [[ "$fluxGitHttpsUseBearerToken" = false && -n "$fluxGitHttpsUsername" ]]; then
+      FLUX_BOOTSTRAP_ARGS="$FLUX_BOOTSTRAP_ARGS --username=$fluxGitHttpsUsername"
+    fi
+    if [[ "$fluxGitHttpsUseTokenAuth" = true ]]; then
+      FLUX_BOOTSTRAP_ARGS="$FLUX_BOOTSTRAP_ARGS --token-auth=true"
+    elif [[ "$fluxGitHttpsUseBearerToken" = true ]]; then
+      FLUX_BOOTSTRAP_ARGS="$FLUX_BOOTSTRAP_ARGS --with-bearer-token"
+    fi
+    if [[ -n "$fluxGitHttpsCAFile" ]]; then
+      FLUX_BOOTSTRAP_ARGS="$FLUX_BOOTSTRAP_ARGS --ca-file=$fluxGitHttpsCAFile"
+    fi
+  fi
+
+  if [[ -z "$fluxGitPath" ]]; then
+    if [[ "$k8sClusterName" == "kubernetes" ]]; then
+      fluxGitPath="clusters/$hostname_lower"
+    else
+      fluxGitPath="clusters/$k8sClusterName"
+    fi
+  fi  
+
+  flux bootstrap git $FLUX_BOOTSTRAP_ARGS \
+    --branch=$fluxGitBranch \
+    --path=$fluxGitPath \
+    --silent \
+    --toleration-keys=node-role.kubernetes.io/control-plane,node-role.kubernetes.io/master \
+    $fluxOptions || true
+fi
 
 # Print success message and tips
 
@@ -917,4 +1084,4 @@ echo -e "curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_w
     --k8s-master-ip $JOIN_IP \\
     --k8s-master-port $JOIN_PORT \\
     --token $JOIN_TOKEN \\
-    --discovery-token-ca-cert-hash $JOIN_CERT_HASH\n"
+    --discovery-token-ca-cert-hash $JOIN_CERT_HASH\n\033[0m"

@@ -1,4 +1,34 @@
 
+### 1.6.0
+*September 14th 2025*
+
+- Add support for Flux CD !
+- Update documentation: wording, formatting, spelling mistakes and references.
+
+---
+### 1.5.0
+*September 9th 2025*
+
+- Includes an option to set the pod network and service CIDRs
+- Includes option to provide a cluster name (triggers the creation of a config file for `kubeadm init`)
+
+---
+### 1.4.1
+*September 6th 2025*
+
+- Control-Plane taint toleration added to Hubble regardless of `--k8s-allow-master-node-schedule` parameter
+- Control-Plane taint toleration added to MetalLB
+- Control-Plane taint toleration added to Metrics server
+- Adds 5 min wait to each apt-get command in case anther process is locking `/var/lib/dpkg/lock-frontend`
+
+---
+### 1.4.0
+*September 5th 2025*
+
+- Include option to provide kubeadm config file instead
+- Add validation around new `--k8skubeadm-config` param
+- Fix bug in which setting NFS default to true meant having two default storage classes
+
 ---
 ### 1.3.0
 *April 26th 2025*

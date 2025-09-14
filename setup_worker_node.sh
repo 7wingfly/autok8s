@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.5.0\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.6.0\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Worker Node Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -51,9 +51,9 @@ export dnsSearch=("domain.local")                           # Your local DNS sea
 export k8sVersion="latest"
 export k8sMasterIP=""
 export k8sMasterPort="6443"
-export k8sToken=""                                          # This and the cert hash can be found by running 'kubeadm token create --print-join-command'
-export k8sTokenDiscoveryCaCertHash=""                       # on the master node
-export k8sKubeadmOptions=""                                   # Additional options you can pass into the kubeadm join command.
+export k8sToken=""                                          # This and the cert hash can be found by running 'kubeadm token create --print-join-command' on the master node
+export k8sTokenDiscoveryCaCertHash=""                       
+export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm join command.
 
 # ------------------------------
 # Parameters
