@@ -1019,8 +1019,12 @@ helm upgrade --install metrics-server metrics-server/metrics-server -n kube-syst
 # Install and bootstrap Flux CD
 
 if [[ "$fluxInstall" = true ]]; then
+  echo -e "\033[32mInstalling Flux CLI\033[0m"
+
   curl -s https://fluxcd.io/install.sh | sudo bash
   command -v flux >/dev/null && . <(flux completion bash)
+
+  echo -e "\033[32mStarting Flux Bootstrap\033[0m"  
 
   export KUBECONFIG=/etc/kubernetes/admin.conf
 
@@ -1050,9 +1054,14 @@ if [[ "$fluxInstall" = true ]]; then
     else
       fluxGitPath="clusters/$k8sClusterName"
     fi
-  fi
+  fi  
 
-  flux bootstrap git $FLUX_BOOTSTRAP_ARGS --branch=$fluxGitBranch --path=$fluxGitPath --silent $fluxOptions
+  flux bootstrap git $FLUX_BOOTSTRAP_ARGS \
+    --branch=$fluxGitBranch \
+    --path=$fluxGitPath \
+    --silent \
+    --toleration-keys=node-role.kubernetes.io/control-plane,node-role.kubernetes.io/master \
+    $fluxOptions || true
 fi
 
 # Print success message and tips
