@@ -1,5 +1,12 @@
 
 ### 1.6.0
+*September 16th 2025*
+
+- Fix k8s version parameter to allow build version (1.23.45)
+- Only grab latest version from GitHub when `$k8sVersion` is `latest`
+
+---
+### 1.6.0
 *September 14th 2025*
 
 - Add support for Flux CD !

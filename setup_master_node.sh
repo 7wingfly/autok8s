@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.6.0\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.6.1\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -262,7 +262,7 @@ if [[ "$configureTCPIPSetting" == true ]]; then
   done
 fi
 
-if [[ ! $k8sVersion =~ ^(latest)$|^[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
+if [[ ! $k8sVersion =~ ^(latest)$|^[0-9]{1,2}(\.[0-9]{1,2}){1,2}$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--k8s-version\e[0m value \e[35m$k8sVersion\e[0m is not in the correct format."
     PARAM_CHECK_PASS=false
 fi
@@ -626,10 +626,8 @@ echo -e "\033[32mInstalling Kubernetes\033[0m"
 
 # Discover latest kubernetes version
 
-export K8S_LATEST_VERSION=$(curl -s https://api.github.com/repos/kubernetes/kubernetes/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
-
 if [ $k8sVersion == "latest" ]; then
-  k8sVersion=$K8S_LATEST_VERSION
+  k8sVersion=$(curl -s https://api.github.com/repos/kubernetes/kubernetes/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
   echo "Detected latest Kubernetes version: $k8sVersion"
 fi
 

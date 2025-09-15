@@ -15,7 +15,7 @@ Parameter values which are wrapped in quotes must include the quotes when applie
 |`--dns-servers`|The DNS servers to use.|`"8.8.8.8 4.4.4.4"`|`"192.168.0.2 192.168.0.3"`|No|
 |`--dns-search`|The local DNS search domains.|`"domain.local"`|`"example.com domain.internal"`|No|
 |`--k8s-cluster-name`|The name given to the cluster.|`kubernetes`|`cluster01`|No|
-|`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.25.0-00`|No|
+|`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.34.1`|No|
 |`--k8s-pod-network-cidr`|The CIDR for pod network.|`10.244.0.0/16`|`10.244.0.0/16`|No|
 |`--k8s-service-cidr`|The CIDR for services.|`10.96.0.0/12`|`10.96.0.0/12`|No|
 |`--k8s-load-balancer-ip-range`|The IP range or CIDR for Kubernetes load balancer.|-|`192.168.0.10-192.168.0.15`<br>or<br>`192.168.0.1/24`|Yes|
