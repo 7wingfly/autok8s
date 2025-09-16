@@ -339,8 +339,8 @@ if [[ ! -z "$k8sKubeadmConfig" && "$k8sClusterName" != "kubernetes" ]]; then
 fi
 
 if [[ ! -z "$k8sKubeadmConfig" && "$k8sVersion" != "latest" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-version\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-version\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sKubeadmOptions" ]]; then
@@ -356,9 +356,9 @@ elif [[ ! -z "$k8sKubeadmConfig" ]]; then
   CONFIG_K8S_VERSION=$(echo "$CONFIG_FILE_CONTENT" | grep "kubernetesVersion:" || true)
   if [[ "$CONFIG_K8S_VERSION" =~ ^kubernetesVersion ]]; then
     k8sVersion=$(echo "$CONFIG_K8S_VERSION" | grep "kubernetesVersion:" | awk '{print $2}' | sed 's/\"//g' | sed "s/'//g")
-    if [[ ! $k8sVersion =~ ^[0-9]{1,2}(\.[0-9]{1,2}){2}$ ]]; then
-        echo -e "\e[31mError:\e[0m The Kubernetes version \e[35m$k8sVersion\e[0m specified in your kubeadm config file is not in the correct format."
-        PARAM_CHECK_PASS=false
+    if [[ ! $k8sVersion =~ ^v[0-9]{1,2}(\.[0-9]{1,2}){2}$ ]]; then
+      echo -e "\e[31mError:\e[0m The Kubernetes version \e[35m$k8sVersion\e[0m specified in your kubeadm config file is not in the correct format. Should be vX.Y.Z e.g. v1.34.0"
+      PARAM_CHECK_PASS=false
     fi
   fi
 fi
@@ -542,7 +542,7 @@ echo -e "\e[32mInfo:\e[0m The service network will be \e[35m$k8sServiceCIDR\e[0m
 if [[ "$k8sVersion" == "latest" ]]; then
   echo -e "\e[32mInfo:\e[0m The latest stable Kubernetes version will be installed."
 else
-  echo -e "\e[32mInfo:\e[0m Kubernetes version \e[35m$k8sVersion\e[0m will be installed."
+  echo -e "\e[32mInfo:\e[0m Kubernetes version \e[35m$(echo $k8sVersion | sed 's/^v//')\e[0m will be installed."
 fi
 
 # Install Kubernetes
