@@ -418,7 +418,7 @@ fi
 
 echo -e "\033[32mJoining Kubernetes Cluster\033[0m"
 
-kubeadm join $k8sMasterIP:$k8sMasterPort --token $k8sToken --discovery-token-ca-cert-hash $k8sTokenDiscoveryCaCertHash --kubernetes-version=$KUBEADM_VERSION $k8sKubeadmOptions
+kubeadm join $k8sMasterIP:$k8sMasterPort --token $k8sToken --discovery-token-ca-cert-hash $k8sTokenDiscoveryCaCertHash $k8sKubeadmOptions
 
 # Print success message
 
