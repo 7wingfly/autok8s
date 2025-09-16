@@ -48,7 +48,7 @@ export dnsSearch=("domain.local")                           # Your local DNS sea
 # ------------------------------
 #
 export k8sClusterName="kubernetes"                          # Name of your Kubernetes cluster. Cannot be used with 'k8sKubeadmConfig'.
-export k8sVersion="latest"                                  # You can specify a specific version such as "1.34.0-00".
+export k8sVersion="latest"                                  # You can specify a specific version such as "1.34.0" or "1.34". Cannot be used with 'k8sKubeadmConfig'
 export k8sPodNetworkCIDR="10.244.0.0/16"                    # Pod network CIDR. Cannot be used with 'k8sKubeadmConfig'.
 export k8sServiceCIDR="10.96.0.0/12"                        # Service network CIDR. Cannot be used with 'k8sKubeadmConfig'.
 export k8sLoadBalancerIPRange=""                            # Either a range such as "192.168.0.100-192.168.0.150" or a CIDR.
@@ -323,11 +323,6 @@ if [[ "$k8sKubeadmOptions" =~ "--service-cidr" ]]; then
   PARAM_CHECK_PASS=false
 fi
 
-if [[ ! -z "$k8sKubeadmConfig" && ! -f "$k8sKubeadmConfig" ]]; then
-  echo -e "\e[31mError:\e[0m The file \e[35m$k8sKubeadmConfig\e[0m specfied for \e[35m--k8s-kubeadm-config\e[0m does not exist.\e[0m"
-  PARAM_CHECK_PASS=false
-fi
-
 if [[ ! -z "$k8sKubeadmConfig" && "$k8sPodNetworkCIDR" != "10.244.0.0/16" ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-pod-network-cidr\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
   PARAM_CHECK_PASS=false
@@ -343,9 +338,29 @@ if [[ ! -z "$k8sKubeadmConfig" && "$k8sClusterName" != "kubernetes" ]]; then
   PARAM_CHECK_PASS=false
 fi
 
+if [[ ! -z "$k8sKubeadmConfig" && "$k8sVersion" != "latest" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-version\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+    PARAM_CHECK_PASS=false
+fi
+
 if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sKubeadmOptions" ]]; then
   echo -e "\e[33mWarning:\e[0m Using \e[35m--k8s-kubeadm-config\e[0m with \e[35m--k8s-kubeadm-options\e[0m may cause kubeadm init to fail depending on the options used.\e[0m"
   PARAM_CHECK_WARN=true
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -f "$k8sKubeadmConfig" ]]; then
+  echo -e "\e[31mError:\e[0m The file \e[35m$k8sKubeadmConfig\e[0m specfied for \e[35m--k8s-kubeadm-config\e[0m does not exist.\e[0m"
+  PARAM_CHECK_PASS=false  
+elif [[ ! -z "$k8sKubeadmConfig" ]]; then
+  CONFIG_FILE_CONTENT=$(cat "$k8sKubeadmConfig" || true)
+  CONFIG_K8S_VERSION=$(echo "$CONFIG_FILE_CONTENT" | grep "kubernetesVersion:" || true)
+  if [[ "$CONFIG_K8S_VERSION" =~ ^kubernetesVersion ]]; then
+    k8sVersion=$(echo "$CONFIG_K8S_VERSION" | grep "kubernetesVersion:" | awk '{print $2}' | sed 's/\"//g' | sed "s/'//g")
+    if [[ ! $k8sVersion =~ ^[0-9]{1,2}(\.[0-9]{1,2}){2}$ ]]; then
+        echo -e "\e[31mError:\e[0m The Kubernetes version \e[35m$k8sVersion\e[0m specified in your kubeadm config file is not in the correct format."
+        PARAM_CHECK_PASS=false
+    fi
+  fi
 fi
 
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
@@ -513,13 +528,22 @@ if [ $PARAM_CHECK_WARN == true ]; then
 fi
 
 if [[ "$nfsDefaultStorageClass" = false && "$smbDefaultStorageClass" = false ]]; then
-  echo -e "\e[32mInfo:\e[0m The default storage class will be set to \e[35msmb\e[0m"
+  echo -e "\e[32mInfo:\e[0m The default storage class will be set to \e[35msmb\e[0m."
   smbDefaultStorageClass=true
 fi
 
-echo -e "\e[32mInfo:\e[0m The cluster name will be \e[35m$k8sClusterName\e[0m"
-echo -e "\e[32mInfo:\e[0m The pod network will be \e[35m$k8sPodNetworkCIDR\e[0m"
-echo -e "\e[32mInfo:\e[0m The service network will be \e[35m$k8sServiceCIDR\e[0m"
+if [[ "$k8sClusterName" != "kubernetes" ]]; then
+  echo -e "\e[32mInfo:\e[0m The cluster name will be \e[35m$k8sClusterName\e[0m."
+fi
+
+echo -e "\e[32mInfo:\e[0m The pod network will be \e[35m$k8sPodNetworkCIDR\e[0m."
+echo -e "\e[32mInfo:\e[0m The service network will be \e[35m$k8sServiceCIDR\e[0m."
+
+if [[ "$k8sVersion" == "latest" ]]; then
+  echo -e "\e[32mInfo:\e[0m The latest stable Kubernetes version will be installed."
+else
+  echo -e "\e[32mInfo:\e[0m Kubernetes version \e[35m$k8sVersion\e[0m will be installed."
+fi
 
 # Install Kubernetes
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -663,7 +687,7 @@ else
   KUBEADM_VERSION=""
 fi
 
-# Add Kubernetes Respository
+# Add Kubernetes Repository
 
 if [ -f /etc/apt/sources.list.d/kubernetes.list ]; then
   rm $KEYRINGS_DIR/kubernetes-apt-keyring.gpg
@@ -700,7 +724,7 @@ apt-get install -qqy $APT_LOCK kubeadm="$kubeadm_ver" kubelet="$kubelet_ver" kub
 
 apt-mark hold kubeadm kubelet kubectl
 
-# Configuring Prerequisite
+# Configuring Prerequisites
 
 echo -e "\033[32mEnable IPv4 packet forwarding\033[0m"
 

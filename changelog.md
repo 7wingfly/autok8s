@@ -1,9 +1,11 @@
 
-### 1.6.0
-*September 16th 2025*
+### 1.6.1
+*September 17th 2025*
 
-- Fix k8s version parameter to allow build version (1.23.45)
-- Only grab latest version from GitHub when `$k8sVersion` is `latest`
+- Fix kubernetes version parameter to allow and use patch version (1.23.45)
+- Extract kubernetes version from kubeadm config file if provided.
+- Only grab latest version from GitHub when `$k8sVersion` is `latest`.
+- Packages kubeadm, kubelet and kubectl now marked `hold`. 
 
 ---
 ### 1.6.0

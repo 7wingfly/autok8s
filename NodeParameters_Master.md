@@ -15,7 +15,7 @@ Parameter values which are wrapped in quotes must include the quotes when applie
 |`--dns-servers`|The DNS servers to use.|`"8.8.8.8 4.4.4.4"`|`"192.168.0.2 192.168.0.3"`|No|
 |`--dns-search`|The local DNS search domains.|`"domain.local"`|`"example.com domain.internal"`|No|
 |`--k8s-cluster-name`|The name given to the cluster.|`kubernetes`|`cluster01`|No|
-|`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.34.1`|No|
+|`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.34` or `1.34.1`|No|
 |`--k8s-pod-network-cidr`|The CIDR for pod network.|`10.244.0.0/16`|`10.244.0.0/16`|No|
 |`--k8s-service-cidr`|The CIDR for services.|`10.96.0.0/12`|`10.96.0.0/12`|No|
 |`--k8s-load-balancer-ip-range`|The IP range or CIDR for Kubernetes load balancer.|-|`192.168.0.10-192.168.0.15`<br>or<br>`192.168.0.1/24`|Yes|
@@ -107,6 +107,7 @@ Example Usage - TCP/IP Setup:
 ```
 
 <br>
+
 Example Usage - Remote NFS Server:
 
 ```bash
@@ -118,6 +119,7 @@ Example Usage - Remote NFS Server:
 ```
 
 <br>
+
 Example Usage - Remote SMB Server:
 
 ```bash
@@ -132,6 +134,7 @@ Example Usage - Remote SMB Server:
 ```
 
 <br>
+
 Example Usage - No Storage (No CSI drivers or Storage Classes will be installed)
 
 ```bash
@@ -142,7 +145,8 @@ Example Usage - No Storage (No CSI drivers or Storage Classes will be installed)
 ```
 
 <br>
-Example Usage - Additional kubeadm init options
+
+Example Usage - Additional `kubeadm init` Options
 
 ```bash
 ./setup_master_node.sh \  
@@ -157,6 +161,27 @@ Example Usage - Additional kubeadm init options
 > Available options for `kubeadm init` [here](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/).
 
 <br>
+
+Example Usage - Kubeadm Config File
+
+```bash
+./setup_master_node.sh \    
+    --k8s-kubeadm-config /path/to/config.yaml \
+    --k8s-load-balancer-ip-range 192.168.0.1/24
+```
+> **NOTE:**<br>
+> The following parameters cannot be used when providing a kubeadm config file and should instead be set in the config file itself:
+> - `--k8s-cluster-name`
+> - `--k8s-version`
+> - `--k8s-pod-network-cidr`
+> - `--k8s-service-cidr`
+>
+> If the config file includes a `kubernetesVersion` field, the version will be extracted and used when installing the `kubeadm`, `kubelet` and `kubectl` packages.
+>
+> Note that using `--k8s-kubeadm-config` and `--k8s-kubeadm-options` used together may cause errors during initialization.
+
+<br>
+
 Example Usage - Kubernetes CNI
 
 ```bash
@@ -167,6 +192,7 @@ Example Usage - Kubernetes CNI
 > Currently the options are `flannel`, `cilium` or `none`. If you choose `none`, MetalLB will also be skipped, and your control-plane node will be in a `NotReady` state until you install your own CNI.
 
 <br>
+
 Example Usage - Flux CD
 
 _The below are examples of using Flux with a GitHub repository. Options are available for other Git providers. Please read the arguments above in conjunction with the official Flux documentation: https://fluxcd.io/flux/cmd/flux_bootstrap_git/_
@@ -204,6 +230,7 @@ This requires creating a PAT token at https://github.com/settings/personal-acces
 > You can override this behavior by passing the full directory with `--flux-git-path clusters/mycluster`.
 
 <br>
+
 Example Usage - All:
 
 ```bash

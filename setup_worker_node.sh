@@ -337,7 +337,7 @@ else
   KUBEADM_VERSION=""
 fi
 
-# Add Kubernetes Respository
+# Add Kubernetes Repository
 
 if [ -f /etc/apt/sources.list.d/kubernetes.list ]; then
   rm $KEYRINGS_DIR/kubernetes-apt-keyring.gpg
@@ -374,7 +374,7 @@ apt-get install -qqy $APT_LOCK kubeadm="$kubeadm_ver" kubelet="$kubelet_ver" kub
 
 apt-mark hold kubeadm kubelet kubectl
 
-# Configuring Prerequisite
+# Configuring Prerequisites
 
 echo -e "\033[32mEnable IPv4 packet forwarding\033[0m"
 
