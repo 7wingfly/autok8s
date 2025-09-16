@@ -61,7 +61,7 @@ export k8sKubeadmConfig=""                                  # Path to kubeadm co
 # Kubernetes Storage Classes
 # ------------------------------
 # If the 'nfsInstallServer' or 'smbInstallServer' values are set to 'false' but the 'nfsServer' or 'smbServer' values are set to anything 
-# other than this machines hostname, the CSI driver(s) will be installed and storage class(es) created and configured for the specifed server(s).
+# other than this machines hostname, the CSI driver(s) will be installed and storage class(es) created and configured for the specified server(s).
 #
 # WARNING: Using the master node as a storage server is not standard practice nor recommended. This option exists so that those who are new to k8s
 # can quickly and easily try out Kubernetes features and applications that rely on persistent storage. Do not do this in a production environment.
@@ -657,10 +657,10 @@ echo "Using APT repo: $K8S_REPO_VERSION"
 
 if [ -n "$K8S_PATCH" ]; then  
   VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.${K8S_PATCH}-"
-  KUBEADM_VERSION_FLAG="v${K8S_MAJ}.${K8S_MIN}.${K8S_PATCH}"
+  KUBEADM_VERSION="v${K8S_MAJ}.${K8S_MIN}.${K8S_PATCH}"
 else  
   VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.[0-9]+-"  
-  KUBEADM_VERSION_FLAG=""
+  KUBEADM_VERSION=""
 fi
 
 # Add Kubernetes Respository
@@ -690,11 +690,11 @@ if [ -z "$kubeadm_ver" ] || [ -z "$kubelet_ver" ] || [ -z "$kubectl_ver" ]; then
   exit 1
 fi
 
-if [ -z "$KUBEADM_VERSION_FLAG" ]; then  
-  KUBEADM_VERSION_FLAG="v$(echo "$kubeadm_ver" | cut -d- -f1)"
+if [ -z "$KUBEADM_VERSION" ]; then  
+  KUBEADM_VERSION="v$(echo "$kubeadm_ver" | cut -d- -f1)"
 fi
 
-echo "Using kubeadm version: $KUBEADM_VERSION_FLAG"
+echo "Using kubeadm version: $KUBEADM_VERSION"
 
 apt-get install -qqy $APT_LOCK kubeadm="$kubeadm_ver" kubelet="$kubelet_ver" kubectl="$kubectl_ver"
 
@@ -743,7 +743,7 @@ fi
 # Init Kubernetes https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
 
 if [[ -z "$k8sKubeadmConfig" && "$k8sClusterName" == "kubernetes" ]]; then  
-  export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=$k8sPodNetworkCIDR --service-cidr=$k8sServiceCIDR"
+  export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=$k8sPodNetworkCIDR --service-cidr=$k8sServiceCIDR  --kubernetes-version=$KUBEADM_VERSION"
 else 
   if [[ -z "$k8sKubeadmConfig" ]]; then
     export k8sKubeadmConfig="/tmp/kubeadm-config.yaml"
@@ -757,6 +757,7 @@ localAPIEndpoint:
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
 clusterName: "$k8sClusterName"
+kubernetesVersion: "$KUBEADM_VERSION"
 networking:
   podSubnet: "$k8sPodNetworkCIDR"
   serviceSubnet: "$k8sServiceCIDR"
@@ -770,7 +771,7 @@ fi
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
 
-kubeadm init $KUBEADM_ARGS $k8sKubeadmOptions --kubernetes-version "$KUBEADM_VERSION_FLAG"
+kubeadm init $KUBEADM_ARGS $k8sKubeadmOptions
 
 # Setup kube config files.
 
