@@ -215,7 +215,7 @@ if [[ ! "$k8sAllowMasterNodeSchedule" =~ ^(true|false)$ ]]; then
 elif [[ "$k8sAllowMasterNodeSchedule" == false ]]; then
   cnischedulewarn=""
   if [ $k8sCNI == "cilium" ]; then cnischedulewarn=" and some Cilium pods"; fi
-  echo -e "\e[33mWarning:\e[0m Master (control-plane) node scheduling will not be enabled. This means that non-core pods will not be scheduled until a worker node is added to the cluster. This includes Metal LB$cnischedulewarn which will result in networking issues."
+  echo -e "\e[33mWarning:\e[0m Master (control-plane) node scheduling will not be enabled. This means that non-core pods will not be scheduled until a worker node is added to the cluster."
   PARAM_CHECK_WARN=true
 fi
 
@@ -262,7 +262,7 @@ if [[ "$configureTCPIPSetting" == true ]]; then
   done
 fi
 
-if [[ ! $k8sVersion =~ ^(latest)$|^[0-9]{1,2}(\.[0-9]{1,2}){1,2}$ ]]; then
+if [[ ! $k8sVersion =~ ^(latest|[0-9]{1,2}(\.[0-9]{1,2}){1,2})$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--k8s-version\e[0m value \e[35m$k8sVersion\e[0m is not in the correct format."
     PARAM_CHECK_PASS=false
 fi

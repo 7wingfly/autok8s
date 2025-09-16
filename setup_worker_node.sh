@@ -152,7 +152,7 @@ if [[ "$configureTCPIPSetting" == true ]]; then
   done
 fi
 
-if [[ ! $k8sVersion =~ ^(latest)$|^[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
+if [[ ! $k8sVersion =~ ^(latest|[0-9]{1,2}(\.[0-9]{1,2}){1,2})$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--k8s-version\e[0m value \e[35m$k8sVersion\e[0m is not in the correct format."
     PARAM_CHECK_PASS=false
 fi
