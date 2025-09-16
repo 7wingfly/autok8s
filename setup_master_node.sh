@@ -303,7 +303,12 @@ if [[ "$k8sKubeadmOptions" =~ "--config" ]]; then
   PARAM_CHECK_PASS=false
 fi
 
-if [[ "$k8sKubeadmOptions" =~ "--apiserver-advertise-addres" ]]; then
+if [[ "$k8sKubeadmOptions" =~ "--kubernetes-version" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--kubernetes-version\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m. Instead use \e[35m--k8s-version\e[0m.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$k8sKubeadmOptions" =~ "--apiserver-advertise-address" ]]; then
   echo -e "\e[31mError:\e[0m You cannot use the \e[35m--apiserver-advertise-address\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m as it's already set from current IP or \e[35m--ip-address\e[0m.\e[0m"
   PARAM_CHECK_PASS=false
 fi
@@ -626,14 +631,37 @@ echo -e "\033[32mInstalling Kubernetes\033[0m"
 
 # Discover latest kubernetes version
 
+normalize_k8s_version() {
+  case "$1" in
+    latest) echo latest ;;
+    v*|V*)  echo "${1#v}" | sed 's/^V//' ;;
+    *)      echo "$1" ;;
+  esac
+}
+
+pick_pkg_ver() {
+  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }'
+}
+
 if [ $k8sVersion == "latest" ]; then
   k8sVersion=$(curl -s https://api.github.com/repos/kubernetes/kubernetes/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
   echo "Detected latest Kubernetes version: $k8sVersion"
 fi
 
-export K8S_REPO_VERSION="v$(echo "$k8sVersion" | cut -d. -f1,2)"
+k8sVersion="$(normalize_k8s_version "$k8sVersion")"
+IFS=. read -r K8S_MAJ K8S_MIN K8S_PATCH <<<"$k8sVersion"
+export K8S_REPO_VERSION="v${K8S_MAJ}.${K8S_MIN}"
 
+echo "Kubernetes version: $k8sVersion"
 echo "Using APT repo: $K8S_REPO_VERSION"
+
+if [ -n "$K8S_PATCH" ]; then  
+  VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.${K8S_PATCH}-"
+  KUBEADM_VERSION_FLAG="v${K8S_MAJ}.${K8S_MIN}.${K8S_PATCH}"
+else  
+  VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.[0-9]+-"  
+  KUBEADM_VERSION_FLAG=""
+fi
 
 # Add Kubernetes Respository
 
@@ -647,7 +675,30 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/Release.key |
 echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
 
 apt-get update -qq $APT_LOCK
-apt-get install -qqy $APT_LOCK kubelet kubeadm kubectl
+
+kubeadm_ver="$(pick_pkg_ver kubeadm $VER_REGEX)"
+kubelet_ver="$(pick_pkg_ver kubelet $VER_REGEX)"
+kubectl_ver="$(pick_pkg_ver kubectl $VER_REGEX)"
+
+echo "Resolved kubeadm version: $kubeadm_ver"
+echo "Resolved kubelet version: $kubelet_ver"
+echo "Resolved kubectl version: $kubectl_ver"
+
+if [ -z "$kubeadm_ver" ] || [ -z "$kubelet_ver" ] || [ -z "$kubectl_ver" ]; then
+  echo -e "\e[31mError:\e[0m Could not find requested version in $K8S_REPO_VERSION.\n\nAvailable kubeadm versions in this minor:"  
+  apt-cache madison kubeadm | sed 's/^/  /'
+  exit 1
+fi
+
+if [ -z "$KUBEADM_VERSION_FLAG" ]; then  
+  KUBEADM_VERSION_FLAG="v$(echo "$kubeadm_ver" | cut -d- -f1)"
+fi
+
+echo "Using kubeadm version: $KUBEADM_VERSION_FLAG"
+
+apt-get install -qqy $APT_LOCK kubeadm="$kubeadm_ver" kubelet="$kubelet_ver" kubectl="$kubectl_ver"
+
+apt-mark hold kubeadm kubelet kubectl
 
 # Configuring Prerequisite
 
@@ -719,7 +770,7 @@ fi
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
 
-kubeadm init $KUBEADM_ARGS $k8sKubeadmOptions
+kubeadm init $KUBEADM_ARGS $k8sKubeadmOptions --kubernetes-version "$KUBEADM_VERSION_FLAG"
 
 # Setup kube config files.
 
