@@ -17,7 +17,7 @@ Parameters that have default values but are marked as required can still be ommi
 |`--default-gateway`|The default gateway to use.|-|`192.168.0.1`|When `--configure-tcpip` is `true`|
 |`--dns-servers`|The DNS servers to use.|`"8.8.8.8 4.4.4.4"`|`"192.168.0.2 192.168.0.3"`|No|
 |`--dns-search`|The local DNS search domains.|`"domain.local"`|`"example.com domain.internal"`|No|
-|`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.25.0-00`|No|
+|`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.34` or `1.34.1`|No|
 |`--k8s-master-ip`|The IP address of the control-plane node.|-|`192.168.0.10`|Yes|
 |`--k8s-master-port`|The Kubernetes API server port on the control-plane node.|`6443`|`6443`|Yes|
 |`--k8s-kubeadm-options`|Additional options to pass into the `kubeadm join` command.|-|`"--ignore-preflight-errors=all"`|No|
@@ -33,6 +33,7 @@ The `--token` and `--discovery-token-ca-cert-hash` parameters should be exactly 
 ## Parameter Examples
 
 <br>
+
 Example Usage - Minimum Required:
 
 ```bash
@@ -43,6 +44,7 @@ Example Usage - Minimum Required:
 ```
 
 <br>
+
 Example Usage - Additional kubeadm join options
 
 ```bash
@@ -52,6 +54,7 @@ Example Usage - Additional kubeadm join options
 > Available options for `kubeadm join` [here](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/). <br> **Do not** include `--token` or `--discovery-token-ca-cert-hash` as these are already set in the script.
 
 <br>
+
 Example Usage - All:
 
 ```bash

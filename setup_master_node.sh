@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.6.0\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.6.1\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -48,7 +48,7 @@ export dnsSearch=("domain.local")                           # Your local DNS sea
 # ------------------------------
 #
 export k8sClusterName="kubernetes"                          # Name of your Kubernetes cluster. Cannot be used with 'k8sKubeadmConfig'.
-export k8sVersion="latest"                                  # You can specify a specific version such as "1.34.0-00".
+export k8sVersion="latest"                                  # You can specify a specific version such as "1.34.0" or "1.34". Cannot be used with 'k8sKubeadmConfig'
 export k8sPodNetworkCIDR="10.244.0.0/16"                    # Pod network CIDR. Cannot be used with 'k8sKubeadmConfig'.
 export k8sServiceCIDR="10.96.0.0/12"                        # Service network CIDR. Cannot be used with 'k8sKubeadmConfig'.
 export k8sLoadBalancerIPRange=""                            # Either a range such as "192.168.0.100-192.168.0.150" or a CIDR.
@@ -61,7 +61,7 @@ export k8sKubeadmConfig=""                                  # Path to kubeadm co
 # Kubernetes Storage Classes
 # ------------------------------
 # If the 'nfsInstallServer' or 'smbInstallServer' values are set to 'false' but the 'nfsServer' or 'smbServer' values are set to anything 
-# other than this machines hostname, the CSI driver(s) will be installed and storage class(es) created and configured for the specifed server(s).
+# other than this machines hostname, the CSI driver(s) will be installed and storage class(es) created and configured for the specified server(s).
 #
 # WARNING: Using the master node as a storage server is not standard practice nor recommended. This option exists so that those who are new to k8s
 # can quickly and easily try out Kubernetes features and applications that rely on persistent storage. Do not do this in a production environment.
@@ -215,7 +215,7 @@ if [[ ! "$k8sAllowMasterNodeSchedule" =~ ^(true|false)$ ]]; then
 elif [[ "$k8sAllowMasterNodeSchedule" == false ]]; then
   cnischedulewarn=""
   if [ $k8sCNI == "cilium" ]; then cnischedulewarn=" and some Cilium pods"; fi
-  echo -e "\e[33mWarning:\e[0m Master (control-plane) node scheduling will not be enabled. This means that non-core pods will not be scheduled until a worker node is added to the cluster. This includes Metal LB$cnischedulewarn which will result in networking issues."
+  echo -e "\e[33mWarning:\e[0m Master (control-plane) node scheduling will not be enabled. This means that non-core pods will not be scheduled until a worker node is added to the cluster."
   PARAM_CHECK_WARN=true
 fi
 
@@ -262,7 +262,7 @@ if [[ "$configureTCPIPSetting" == true ]]; then
   done
 fi
 
-if [[ ! $k8sVersion =~ ^(latest)$|^[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
+if [[ ! $k8sVersion =~ ^(latest|[0-9]{1,2}(\.[0-9]{1,2}){1,2})$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--k8s-version\e[0m value \e[35m$k8sVersion\e[0m is not in the correct format."
     PARAM_CHECK_PASS=false
 fi
@@ -303,7 +303,12 @@ if [[ "$k8sKubeadmOptions" =~ "--config" ]]; then
   PARAM_CHECK_PASS=false
 fi
 
-if [[ "$k8sKubeadmOptions" =~ "--apiserver-advertise-addres" ]]; then
+if [[ "$k8sKubeadmOptions" =~ "--kubernetes-version" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--kubernetes-version\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m. Instead use \e[35m--k8s-version\e[0m.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$k8sKubeadmOptions" =~ "--apiserver-advertise-address" ]]; then
   echo -e "\e[31mError:\e[0m You cannot use the \e[35m--apiserver-advertise-address\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m as it's already set from current IP or \e[35m--ip-address\e[0m.\e[0m"
   PARAM_CHECK_PASS=false
 fi
@@ -315,11 +320,6 @@ fi
 
 if [[ "$k8sKubeadmOptions" =~ "--service-cidr" ]]; then
   echo -e "\e[31mError:\e[0m You cannot use the \e[35m--service-cidr\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m as it's already included. Pass in with \e[35m--k8s-service-cidr\e[0m instead.\e[0m"
-  PARAM_CHECK_PASS=false
-fi
-
-if [[ ! -z "$k8sKubeadmConfig" && ! -f "$k8sKubeadmConfig" ]]; then
-  echo -e "\e[31mError:\e[0m The file \e[35m$k8sKubeadmConfig\e[0m specfied for \e[35m--k8s-kubeadm-config\e[0m does not exist.\e[0m"
   PARAM_CHECK_PASS=false
 fi
 
@@ -338,9 +338,29 @@ if [[ ! -z "$k8sKubeadmConfig" && "$k8sClusterName" != "kubernetes" ]]; then
   PARAM_CHECK_PASS=false
 fi
 
+if [[ ! -z "$k8sKubeadmConfig" && "$k8sVersion" != "latest" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-version\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
 if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sKubeadmOptions" ]]; then
   echo -e "\e[33mWarning:\e[0m Using \e[35m--k8s-kubeadm-config\e[0m with \e[35m--k8s-kubeadm-options\e[0m may cause kubeadm init to fail depending on the options used.\e[0m"
   PARAM_CHECK_WARN=true
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -f "$k8sKubeadmConfig" ]]; then
+  echo -e "\e[31mError:\e[0m The file \e[35m$k8sKubeadmConfig\e[0m specfied for \e[35m--k8s-kubeadm-config\e[0m does not exist.\e[0m"
+  PARAM_CHECK_PASS=false  
+elif [[ ! -z "$k8sKubeadmConfig" ]]; then
+  CONFIG_FILE_CONTENT=$(cat "$k8sKubeadmConfig" || true)
+  CONFIG_K8S_VERSION=$(echo "$CONFIG_FILE_CONTENT" | grep "kubernetesVersion:" || true)
+  if [[ "$CONFIG_K8S_VERSION" =~ ^kubernetesVersion ]]; then
+    k8sVersion=$(echo "$CONFIG_K8S_VERSION" | grep "kubernetesVersion:" | awk '{print $2}' | sed 's/\"//g' | sed "s/'//g")
+    if [[ ! $k8sVersion =~ ^v[0-9]{1,2}(\.[0-9]{1,2}){2}$ ]]; then
+      echo -e "\e[31mError:\e[0m The Kubernetes version \e[35m$k8sVersion\e[0m specified in your kubeadm config file is not in the correct format. Should be vX.Y.Z e.g. v1.34.0"
+      PARAM_CHECK_PASS=false
+    fi
+  fi
 fi
 
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
@@ -508,13 +528,22 @@ if [ $PARAM_CHECK_WARN == true ]; then
 fi
 
 if [[ "$nfsDefaultStorageClass" = false && "$smbDefaultStorageClass" = false ]]; then
-  echo -e "\e[32mInfo:\e[0m The default storage class will be set to \e[35msmb\e[0m"
+  echo -e "\e[32mInfo:\e[0m The default storage class will be set to \e[35msmb\e[0m."
   smbDefaultStorageClass=true
 fi
 
-echo -e "\e[32mInfo:\e[0m The cluster name will be \e[35m$k8sClusterName\e[0m"
-echo -e "\e[32mInfo:\e[0m The pod network will be \e[35m$k8sPodNetworkCIDR\e[0m"
-echo -e "\e[32mInfo:\e[0m The service network will be \e[35m$k8sServiceCIDR\e[0m"
+if [[ "$k8sClusterName" != "kubernetes" ]]; then
+  echo -e "\e[32mInfo:\e[0m The cluster name will be \e[35m$k8sClusterName\e[0m."
+fi
+
+echo -e "\e[32mInfo:\e[0m The pod network will be \e[35m$k8sPodNetworkCIDR\e[0m."
+echo -e "\e[32mInfo:\e[0m The service network will be \e[35m$k8sServiceCIDR\e[0m."
+
+if [[ "$k8sVersion" == "latest" ]]; then
+  echo -e "\e[32mInfo:\e[0m The latest stable Kubernetes version will be installed."
+else
+  echo -e "\e[32mInfo:\e[0m Kubernetes version \e[35m$(echo $k8sVersion | sed 's/^v//')\e[0m will be installed."
+fi
 
 # Install Kubernetes
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -626,18 +655,39 @@ echo -e "\033[32mInstalling Kubernetes\033[0m"
 
 # Discover latest kubernetes version
 
-export K8S_LATEST_VERSION=$(curl -s https://api.github.com/repos/kubernetes/kubernetes/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
+normalize_k8s_version() {
+  case "$1" in
+    latest) echo latest ;;
+    v*|V*)  echo "${1#v}" | sed 's/^V//' ;;
+    *)      echo "$1" ;;
+  esac
+}
+
+pick_pkg_ver() {
+  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }'
+}
 
 if [ $k8sVersion == "latest" ]; then
-  k8sVersion=$K8S_LATEST_VERSION
+  k8sVersion=$(curl -s https://api.github.com/repos/kubernetes/kubernetes/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
   echo "Detected latest Kubernetes version: $k8sVersion"
 fi
 
-export K8S_REPO_VERSION="v$(echo "$k8sVersion" | cut -d. -f1,2)"
+k8sVersion="$(normalize_k8s_version "$k8sVersion")"
+IFS=. read -r K8S_MAJ K8S_MIN K8S_PATCH <<<"$k8sVersion"
+export K8S_REPO_VERSION="v${K8S_MAJ}.${K8S_MIN}"
 
+echo "Kubernetes version: $k8sVersion"
 echo "Using APT repo: $K8S_REPO_VERSION"
 
-# Add Kubernetes Respository
+if [ -n "$K8S_PATCH" ]; then  
+  VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.${K8S_PATCH}-"
+  KUBEADM_VERSION="v${K8S_MAJ}.${K8S_MIN}.${K8S_PATCH}"
+else  
+  VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.[0-9]+-"  
+  KUBEADM_VERSION=""
+fi
+
+# Add Kubernetes Repository
 
 if [ -f /etc/apt/sources.list.d/kubernetes.list ]; then
   rm $KEYRINGS_DIR/kubernetes-apt-keyring.gpg
@@ -649,9 +699,32 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/Release.key |
 echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
 
 apt-get update -qq $APT_LOCK
-apt-get install -qqy $APT_LOCK kubelet kubeadm kubectl
 
-# Configuring Prerequisite
+kubeadm_ver="$(pick_pkg_ver kubeadm $VER_REGEX)"
+kubelet_ver="$(pick_pkg_ver kubelet $VER_REGEX)"
+kubectl_ver="$(pick_pkg_ver kubectl $VER_REGEX)"
+
+echo "Resolved kubeadm version: $kubeadm_ver"
+echo "Resolved kubelet version: $kubelet_ver"
+echo "Resolved kubectl version: $kubectl_ver"
+
+if [ -z "$kubeadm_ver" ] || [ -z "$kubelet_ver" ] || [ -z "$kubectl_ver" ]; then
+  echo -e "\e[31mError:\e[0m Could not find requested version in $K8S_REPO_VERSION.\n\nAvailable kubeadm versions in this minor:"  
+  apt-cache madison kubeadm | sed 's/^/  /'
+  exit 1
+fi
+
+if [ -z "$KUBEADM_VERSION" ]; then  
+  KUBEADM_VERSION="v$(echo "$kubeadm_ver" | cut -d- -f1)"
+fi
+
+echo "Using kubeadm version: $KUBEADM_VERSION"
+
+apt-get install -qqy $APT_LOCK kubeadm="$kubeadm_ver" kubelet="$kubelet_ver" kubectl="$kubectl_ver"
+
+apt-mark hold kubeadm kubelet kubectl
+
+# Configuring Prerequisites
 
 echo -e "\033[32mEnable IPv4 packet forwarding\033[0m"
 
@@ -694,7 +767,7 @@ fi
 # Init Kubernetes https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
 
 if [[ -z "$k8sKubeadmConfig" && "$k8sClusterName" == "kubernetes" ]]; then  
-  export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=$k8sPodNetworkCIDR --service-cidr=$k8sServiceCIDR"
+  export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=$k8sPodNetworkCIDR --service-cidr=$k8sServiceCIDR --kubernetes-version=$KUBEADM_VERSION"
 else 
   if [[ -z "$k8sKubeadmConfig" ]]; then
     export k8sKubeadmConfig="/tmp/kubeadm-config.yaml"
@@ -708,6 +781,7 @@ localAPIEndpoint:
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
 clusterName: "$k8sClusterName"
+kubernetesVersion: "$KUBEADM_VERSION"
 networking:
   podSubnet: "$k8sPodNetworkCIDR"
   serviceSubnet: "$k8sServiceCIDR"

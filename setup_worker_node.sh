@@ -6,14 +6,13 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.6.0\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.6.1\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Worker Node Edition\e[0m\n'
 
 # Check sudo & keep sudo running
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
-if [ "$(id -u)" -ne 0 ]
-then
+if [ "$(id -u)" -ne 0 ]; then
   echo -e "\033[31mYou must run this script as root\033[0m"
   exit
 fi
@@ -153,7 +152,7 @@ if [[ "$configureTCPIPSetting" == true ]]; then
   done
 fi
 
-if [[ ! $k8sVersion =~ ^(latest)$|^[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
+if [[ ! $k8sVersion =~ ^(latest|[0-9]{1,2}(\.[0-9]{1,2}){1,2})$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--k8s-version\e[0m value \e[35m$k8sVersion\e[0m is not in the correct format."
     PARAM_CHECK_PASS=false
 fi
@@ -240,10 +239,12 @@ fi
 
 # Install Prerequsite Packages
 
+export APT_LOCK="-o DPkg::Lock::Timeout=600"
+
 echo -e "\033[32mInstalling prerequisites\033[0m"
 
-apt-get update -qq
-apt-get install -qqy apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
+apt-get update -qq $APT_LOCK
+apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
 
 # Add Docker Repository https://docs.docker.com/engine/install/ubuntu/
 
@@ -266,8 +267,8 @@ echo -e "\033[32mInstalling Docker\033[0m"
 
 sleep 1 # Sleep for a second in case of file locks
 
-apt-get update -qq
-apt-get install -qqy docker-ce docker-ce-cli
+apt-get update -qq $APT_LOCK
+apt-get install -qqy $APT_LOCK docker-ce docker-ce-cli
 
 tee /etc/docker/daemon.json >/dev/null <<EOF
 {
@@ -304,18 +305,39 @@ echo -e "\033[32mInstalling Kubernetes\033[0m"
 
 # Discover latest kubernetes version
 
-export K8S_LATEST_VERSION=$(curl -s https://api.github.com/repos/kubernetes/kubernetes/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
+normalize_k8s_version() {
+  case "$1" in
+    latest) echo latest ;;
+    v*|V*)  echo "${1#v}" | sed 's/^V//' ;;
+    *)      echo "$1" ;;
+  esac
+}
+
+pick_pkg_ver() {
+  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }'
+}
 
 if [ $k8sVersion == "latest" ]; then
-  k8sVersion=$K8S_LATEST_VERSION
+  k8sVersion=$(curl -s https://api.github.com/repos/kubernetes/kubernetes/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
   echo "Detected latest Kubernetes version: $k8sVersion"
 fi
 
-export K8S_REPO_VERSION="v$(echo "$k8sVersion" | cut -d. -f1,2)"
+k8sVersion="$(normalize_k8s_version "$k8sVersion")"
+IFS=. read -r K8S_MAJ K8S_MIN K8S_PATCH <<<"$k8sVersion"
+export K8S_REPO_VERSION="v${K8S_MAJ}.${K8S_MIN}"
 
+echo "Kubernetes version: $k8sVersion"
 echo "Using APT repo: $K8S_REPO_VERSION"
 
-# Add Kubernetes Respository
+if [ -n "$K8S_PATCH" ]; then  
+  VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.${K8S_PATCH}-"
+  KUBEADM_VERSION="v${K8S_MAJ}.${K8S_MIN}.${K8S_PATCH}"
+else  
+  VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.[0-9]+-"  
+  KUBEADM_VERSION=""
+fi
+
+# Add Kubernetes Repository
 
 if [ -f /etc/apt/sources.list.d/kubernetes.list ]; then
   rm $KEYRINGS_DIR/kubernetes-apt-keyring.gpg
@@ -326,12 +348,33 @@ echo -e "\033[32mAdding Kubernetes community repository\033[0m"
 curl -fsSL https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/Release.key | gpg --dearmor -o $KEYRINGS_DIR/kubernetes-apt-keyring.gpg    
 echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
 
-sleep 1 # Sleep for a second in case of file locks
+apt-get update -qq $APT_LOCK
 
-apt-get update -qq
-apt-get install -qqy kubelet kubeadm kubectl
+kubeadm_ver="$(pick_pkg_ver kubeadm $VER_REGEX)"
+kubelet_ver="$(pick_pkg_ver kubelet $VER_REGEX)"
+kubectl_ver="$(pick_pkg_ver kubectl $VER_REGEX)"
 
-# Configuring Prerequisite
+echo "Resolved kubeadm version: $kubeadm_ver"
+echo "Resolved kubelet version: $kubelet_ver"
+echo "Resolved kubectl version: $kubectl_ver"
+
+if [ -z "$kubeadm_ver" ] || [ -z "$kubelet_ver" ] || [ -z "$kubectl_ver" ]; then
+  echo -e "\e[31mError:\e[0m Could not find requested version in $K8S_REPO_VERSION.\n\nAvailable kubeadm versions in this minor:"  
+  apt-cache madison kubeadm | sed 's/^/  /'
+  exit 1
+fi
+
+if [ -z "$KUBEADM_VERSION" ]; then  
+  KUBEADM_VERSION="v$(echo "$kubeadm_ver" | cut -d- -f1)"
+fi
+
+echo "Using kubeadm version: $KUBEADM_VERSION"
+
+apt-get install -qqy $APT_LOCK kubeadm="$kubeadm_ver" kubelet="$kubelet_ver" kubectl="$kubectl_ver"
+
+apt-mark hold kubeadm kubelet kubectl
+
+# Configuring Prerequisites
 
 echo -e "\033[32mEnable IPv4 packet forwarding\033[0m"
 
