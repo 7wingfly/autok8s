@@ -1,4 +1,27 @@
 #!/bin/bash
+set -euo pipefail
+
+echo -e '\e[35m      _         _       \e[36m _    ___       \e[0m'
+echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
+echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
+echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
+echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
+echo -e '\e[35m                Version:\e[36m 1.6.1\e[0m\n'
+echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
+
+# Check sudo & keep sudo running
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo -e "\033[31mYou must run this script as root\033[0m"
+  exit
+fi
+
+sudo -v
+while true; do  
+  sudo -nv; sleep 1m
+  kill -0 $$ 2>/dev/null || exit
+done &
 
 # Define Variables, Default Values & Parameters 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -24,15 +47,21 @@ export dnsSearch=("domain.local")                           # Your local DNS sea
 # Kubernetes
 # ------------------------------
 #
-export k8sVersion="latest"                                  # You can specify a specific version such as "1.25.0-00".
-export k8sLoadBalancerIPRange=""                            # Either a range such as "192.168.0.100-192.168.0.150" or a CIDR (Add /32 for a single IP).
-export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice however without it MetalLB cannot be deployed until a node is added.
+export k8sClusterName="kubernetes"                          # Name of your Kubernetes cluster. Cannot be used with 'k8sKubeadmConfig'.
+export k8sVersion="latest"                                  # You can specify a specific version such as "1.34.0" or "1.34". Cannot be used with 'k8sKubeadmConfig'
+export k8sPodNetworkCIDR="10.244.0.0/16"                    # Pod network CIDR. Cannot be used with 'k8sKubeadmConfig'.
+export k8sServiceCIDR="10.96.0.0/12"                        # Service network CIDR. Cannot be used with 'k8sKubeadmConfig'.
+export k8sLoadBalancerIPRange=""                            # Either a range such as "192.168.0.100-192.168.0.150" or a CIDR.
+export k8sCNI="flannel"                                     # Choose a Kubernetes network plugin.
+export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice if you're only going to have a single node.
+export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm init command. Do not include --config, --apiserver-advertise-address, --pod-network-cidr or --service-cidr.
+export k8sKubeadmConfig=""                                  # Path to kubeadm config file. Cannot be used with 'k8sClusterName', 'k8sPodNetworkCIDR' or 'k8sServiceCIDR'.
 
 # ------------------------------
 # Kubernetes Storage Classes
 # ------------------------------
 # If the 'nfsInstallServer' or 'smbInstallServer' values are set to 'false' but the 'nfsServer' or 'smbServer' values are set to anything 
-# other than this machines hostname, the CSI driver(s) will be installed and storage class(es) created and configured for the specifed server(s).
+# other than this machines hostname, the CSI driver(s) will be installed and storage class(es) created and configured for the specified server(s).
 #
 # WARNING: Using the master node as a storage server is not standard practice nor recommended. This option exists so that those who are new to k8s
 # can quickly and easily try out Kubernetes features and applications that rely on persistent storage. Do not do this in a production environment.
@@ -48,7 +77,27 @@ export smbSharePath="/shares/smb"                           # Local server only.
 export smbShareName="persistentvolumes"
 export smbUsername=$SUDO_USER
 export smbPassword="password"
-export smbDefaultStorageClass=true                          # Only one storage class should be set as default.
+export smbDefaultStorageClass=false                         # Only one storage class should be set as default.
+
+# ------------------------------
+# Flux
+# ------------------------------
+#
+export fluxInstall=false
+export fluxGitHost="github.com"
+export fluxGitBranch="main"
+export fluxGitOrg=""
+export fluxGitRepo=""
+export fluxGitPath=""                                       # Will default to 'clusters/<k8sClusterName>' or 'clusters/<hostname> if cluster name is not specified.
+export fluxGitHttpsUseTokenAuth=false
+export fluxGitHttpsUseBearerToken=false
+export fluxGitAuthMethod=""
+export fluxGitSshPrivateKeyFile=""
+export fluxGitHttpsUsername=""
+export fluxGitHttpsPassword=""
+export fluxGitHttpsCAFile=""
+export fluxGitSshPrivateKeyPassword=""
+export fluxOptions=""
 
 # ------------------------------
 # Parameters
@@ -64,9 +113,15 @@ while [[ $# -gt 0 ]]; do
         --default-gateway) defaultGateway="$2"; shift; shift;;
         --dns-servers) dnsServers=($2); shift; shift;;
         --dns-search) dnsSearch=($2); shift; shift;;
+        --k8s-cluster-name) k8sClusterName="$2"; shift; shift;;
         --k8s-version) k8sVersion="$2"; shift; shift;;
+        --k8s-pod-network-cidr) k8sPodNetworkCIDR="$2"; shift; shift;;
+        --k8s-service-cidr) k8sServiceCIDR="$2"; shift; shift;;
         --k8s-load-balancer-ip-range) k8sLoadBalancerIPRange="$2"; shift; shift;;
+        --k8s-cni) k8sCNI="$2"; shift; shift;;
         --k8s-allow-master-node-schedule) k8sAllowMasterNodeSchedule="$2"; shift; shift;;
+        --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
+        --k8s-kubeadm-config) k8sKubeadmConfig="$2"; shift; shift;;
         --nfs-install-server) nfsInstallServer="$2"; shift; shift;;
         --nfs-server) nfsServer="$2"; shift; shift;;
         --nfs-share-path) nfsSharePath="$2"; shift; shift;;
@@ -78,16 +133,24 @@ while [[ $# -gt 0 ]]; do
         --smb-username) smbUsername="$2"; shift; shift;;
         --smb-password) smbPassword="$2"; shift; shift;;
         --smb-default-storage-class) smbDefaultStorageClass="$2"; shift; shift;;
+        --flux-install) fluxInstall="$2"; shift; shift;;
+        --flux-git-host) fluxGitHost="$2"; shift; shift;;
+        --flux-git-org) fluxGitOrg="$2"; shift; shift;;
+        --flux-git-repo) fluxGitRepo="$2"; shift; shift;;
+        --flux-git-branch) fluxGitBranch="$2"; shift; shift;;
+        --flux-git-path) fluxGitPath="$2"; shift; shift;;
+        --flux-git-auth-method) fluxGitAuthMethod="$2"; shift; shift;;
+        --flux-git-ssh-private-key-file) fluxGitSshPrivateKeyFile="$2"; shift; shift;;
+        --flux-git-ssh-private-key-password) fluxGitSshPrivateKeyPassword="$2"; shift; shift;;
+        --flux-git-https-username) fluxGitHttpsUsername="$2"; shift; shift;;
+        --flux-git-https-password) fluxGitHttpsPassword="$2"; shift; shift;;
+        --flux-git-https-use-token-auth) fluxGitHttpsUseTokenAuth="$2"; shift; shift;;
+        --flux-git-https-use-bearer-token) fluxGitHttpsUseBearerToken="$2"; shift; shift;;
+        --flux-git-https-ca-file) fluxGitHttpsCAFile="$2"; shift; shift;;
+        --flux-options) fluxOptions="$2"; shift; shift;;  
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
 done
-
-echo -e '\e[35m      _         _        \e[36m _    ___       \e[0m'
-echo -e '\e[35m     / \  _   _| |_ ___  \e[36m| | _( _ ) ___  \e[0m'
-echo -e '\e[35m    / _ \| | | | __/ _ \ \e[36m| |/ / _ \/ __| \e[0m'
-echo -e '\e[35m   / ___ \ |_| | || (_) |\e[36m|   < (_) \__ \ \e[0m'
-echo -e '\e[35m  /_/   \_\__,_|\__\___/ \e[36m|_|\_\___/|___/ \e[0m\n'
-echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Perform Validation
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -118,6 +181,7 @@ if [ $HARDWARE_CHECK_PASS == false ]; then
 fi
 
 export PARAM_CHECK_PASS=true
+export PARAM_CHECK_WARN=false
 
 # Try and determine IP address if one is not specified
 
@@ -149,7 +213,10 @@ if [[ ! "$k8sAllowMasterNodeSchedule" =~ ^(true|false)$ ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--k8s-allow-master-node-schedule\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
   PARAM_CHECK_PASS=false
 elif [[ "$k8sAllowMasterNodeSchedule" == false ]]; then
-  echo -e "\e[33mWarning:\e[0m Master (control-plane) node scheduling will not be enabled. This means that non-core pods will not be scheduled until a worker node is added to the cluster. This includes Metal LB which will prevent external traffic from reach the cluster."
+  cnischedulewarn=""
+  if [ $k8sCNI == "cilium" ]; then cnischedulewarn=" and some Cilium pods"; fi
+  echo -e "\e[33mWarning:\e[0m Master (control-plane) node scheduling will not be enabled. This means that non-core pods will not be scheduled until a worker node is added to the cluster."
+  PARAM_CHECK_WARN=true
 fi
 
 if [[ ! "$smbInstallServer" =~ ^(true|false)$ ]]; then
@@ -185,6 +252,7 @@ if [[ "$configureTCPIPSetting" == true ]]; then
   fi
   if [[ "${#dnsServers[@]}" -gt 3 ]]; then
     echo -e "\e[33mWarning:\e[0m Number of DNS servers should not be greater than 3. Kubernetes may display errors but will continue to work."
+    PARAM_CHECK_WARN=true
   fi
   for ip in "${dnsServers[@]}"; do
     if [[ ! $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
@@ -192,6 +260,107 @@ if [[ "$configureTCPIPSetting" == true ]]; then
         PARAM_CHECK_PASS=false
     fi
   done
+fi
+
+if [[ ! $k8sVersion =~ ^(latest|[0-9]{1,2}(\.[0-9]{1,2}){1,2})$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-version\e[0m value \e[35m$k8sVersion\e[0m is not in the correct format."
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ ! $k8sCNI =~ ^(flannel|cilium|none)$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-cni\e[0m value \e[35m$k8sCNI\e[0m is not valid. Options are: \e[35mflannel\e[0m (default), \e[35mcilium\e[0m or \e[35mnone\e[0m."
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ ! $k8sPodNetworkCIDR =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-pod-network-cidr\e[0m value \e[35m$k8sPodNetworkCIDR\e[0m is not a valid CIDR."
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ ! $k8sServiceCIDR =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-service-cidr\e[0m value \e[35m$k8sServiceCIDR\e[0m is not a valid CIDR."
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ ! "$k8sClusterName" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-cluster-name\e[0m value \e[35m$k8sClusterName\e[0m is invalid."
+  PARAM_CHECK_PASS=false
+elif [[ "$k8sCNI" == "cilium" && "$k8sClusterName" =~ [A-Z] ]]; then
+  echo -e "\e[31mError:\e[0m The cluster name must be lower case when using Cilium CNI."
+  PARAM_CHECK_PASS=false
+elif [[ "$k8sClusterName" =~ [A-Z] ]]; then
+  echo -e "\e[33mWarning:\e[0m Your cluster name contains uppercase characters. You may experience issues if you later change your CNI to Cilium."
+  PARAM_CHECK_WARN=true
+fi
+
+if [ $k8sCNI == "none" ]; then
+  echo -e "\033[33mWarning:\033[0m You have chosen not to install a CNI. Your master node will not be in a 'ready' state until you install one."
+  PARAM_CHECK_WARN=true
+fi
+
+if [[ "$k8sKubeadmOptions" =~ "--config" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--config\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m. Instead use \e[35m--k8s-kubeadm-config <config file>\e[0m.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$k8sKubeadmOptions" =~ "--kubernetes-version" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--kubernetes-version\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m. Instead use \e[35m--k8s-version\e[0m.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$k8sKubeadmOptions" =~ "--apiserver-advertise-address" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--apiserver-advertise-address\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m as it's already set from current IP or \e[35m--ip-address\e[0m.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$k8sKubeadmOptions" =~ "--pod-network-cidr" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--pod-network-cidr\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m as it's already included. Pass in with \e[35m--k8s-pod-network-cidr\e[0m instead.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ "$k8sKubeadmOptions" =~ "--service-cidr" ]]; then
+  echo -e "\e[31mError:\e[0m You cannot use the \e[35m--service-cidr\e[0m argument inside of \e[35m--k8s-kubeadm-options\e[0m as it's already included. Pass in with \e[35m--k8s-service-cidr\e[0m instead.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && "$k8sPodNetworkCIDR" != "10.244.0.0/16" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-pod-network-cidr\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && "$k8sServiceCIDR" != "10.96.0.0/12" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-service-cidr\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && "$k8sClusterName" != "kubernetes" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-cluster-name\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && "$k8sVersion" != "latest" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-version\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sKubeadmOptions" ]]; then
+  echo -e "\e[33mWarning:\e[0m Using \e[35m--k8s-kubeadm-config\e[0m with \e[35m--k8s-kubeadm-options\e[0m may cause kubeadm init to fail depending on the options used.\e[0m"
+  PARAM_CHECK_WARN=true
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -f "$k8sKubeadmConfig" ]]; then
+  echo -e "\e[31mError:\e[0m The file \e[35m$k8sKubeadmConfig\e[0m specfied for \e[35m--k8s-kubeadm-config\e[0m does not exist.\e[0m"
+  PARAM_CHECK_PASS=false  
+elif [[ ! -z "$k8sKubeadmConfig" ]]; then
+  CONFIG_FILE_CONTENT=$(cat "$k8sKubeadmConfig" || true)
+  CONFIG_K8S_VERSION=$(echo "$CONFIG_FILE_CONTENT" | grep "kubernetesVersion:" || true)
+  if [[ "$CONFIG_K8S_VERSION" =~ ^kubernetesVersion ]]; then
+    k8sVersion=$(echo "$CONFIG_K8S_VERSION" | grep "kubernetesVersion:" | awk '{print $2}' | sed 's/\"//g' | sed "s/'//g")
+    if [[ ! $k8sVersion =~ ^v[0-9]{1,2}(\.[0-9]{1,2}){2}$ ]]; then
+      echo -e "\e[31mError:\e[0m The Kubernetes version \e[35m$k8sVersion\e[0m specified in your kubeadm config file is not in the correct format. Should be vX.Y.Z e.g. v1.34.0"
+      PARAM_CHECK_PASS=false
+    fi
+  fi
 fi
 
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
@@ -261,32 +430,123 @@ if [[ -n "$smbServer" && ! $smbServer =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$ 
   PARAM_CHECK_PASS=false
 fi
 
+if [[ ! "$fluxInstall" =~ ^(true|false)$ ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--install-flux\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+  PARAM_CHECK_PASS=false
+elif [[ "$fluxInstall" = true ]]; then
+  if [[ -z "$fluxGitOrg" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-org\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m. If you are not part of an organisation, use your username."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$fluxGitRepo" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-repo\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$fluxGitRepo" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-repo\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false
+  fi
+  if [[ -z "$fluxGitAuthMethod" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-auth-method\e[0m is required when \e[35m--install-flux\e[0m is set to \e[35mtrue\e[0m."
+    PARAM_CHECK_PASS=false  
+  elif [[ ! "$fluxGitAuthMethod" =~ ^(ssh|https)$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--flux-git-auth-method\e[0m must be set to either \e[35mssh\e[0m or \e[35mhttps\e[0m."
+    PARAM_CHECK_PASS=false
+  else
+    if [[ "$fluxGitAuthMethod" == "ssh" ]]; then      
+      if [[ -z "$fluxGitSshPrivateKeyFile" ]]; then
+        echo -e "\e[31mError:\e[0m \e[35m--flux-git-ssh-private-key-file\e[0m is required if \e[35m--flux-git-auth-method\e[0m is set to \e[35mssh\e[0m."
+        PARAM_CHECK_PASS=false
+      elif [[ ! -f "$fluxGitSshPrivateKeyFile" ]]; then
+        echo -e "\e[31mError:\e[0m Flux Git SSH private key file not found: \e[35m$fluxGitSshPrivateKeyFile\e[0m. Please check \e[35m--flux-git-ssh-private-key-file\e[0m."
+        PARAM_CHECK_PASS=false
+      else
+        if [[ "$(stat -c "%a" "$fluxGitSshPrivateKeyFile")" != "600" ]]; then
+          echo -e "\e[33mWarning:\e[0m Flux Git SSH private key file permissions are not 600. Fixing permissions..."
+          chmod 600 "$fluxGitSshPrivateKeyFile"
+        fi
+        if ! KEY_TEST_RESULT=$(ssh-keygen -y -f "$fluxGitSshPrivateKeyFile" -P "$fluxGitSshPrivateKeyPassword" 2>&1); then          
+          if [[ $KEY_TEST_RESULT =~ "error in libcrypto" ]]; then
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file could read. Check formatting and line endings (LF, not CRLF)\e[0m."
+            PARAM_CHECK_PASS=false
+          elif [[ $KEY_TEST_RESULT =~ "incorrect passphrase" ]] && [[ -z "$fluxGitSshPrivateKeyPassword" ]]; then
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file requires a password. Please include \e[35m--flux-git-ssh-private-key-password\e[0m."
+            PARAM_CHECK_PASS=false
+          elif [[ $KEY_TEST_RESULT =~ "incorrect passphrase" ]]; then
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file password is incorrect. Please check \e[35m--flux-git-ssh-private-key-password\e[0m."
+            PARAM_CHECK_PASS=false
+          else 
+            echo -e "\e[31mError:\e[0m Flux Git SSH private key file could not be loaded. Error: $KEY_TEST_RESULT\e[0m."
+            PARAM_CHECK_PASS=false
+          fi        
+        elif KEY_TEST_RESULT_NO_PW=$(ssh-keygen -y -f "$fluxGitSshPrivateKeyFile" -P "" 2>&1) && [[ ! -z "$fluxGitSshPrivateKeyPassword" ]]; then
+            echo -e "\e[33mWarning:\e[0m Flux Git SSH private key file does not require a password but you have provded one anyway. This will be ignored."
+            fluxGitSshPrivateKeyPassword=""
+        fi        
+      fi
+    elif [[ "$fluxGitAuthMethod" == "https" ]]; then
+      if [[ -z "$fluxGitHttpsPassword" ]]; then
+        echo -e "\e[31mError:\e[0m \e[35m--flux-git-https-password\e[0m is required if \e[35m--flux-git-auth-method\e[0m is set to \e[35mhttp\e[0m."
+        PARAM_CHECK_PASS=false
+      fi      
+      if [[ ! "$fluxGitHttpsUseTokenAuth" =~ ^(true|false)$ ]]; then
+        echo -e "\e[31mError:\e[0m \e[35m--flux-git-https-use-token-auth\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+        PARAM_CHECK_PASS=false
+      elif [[ ! "$fluxGitHttpsUseBearerToken" =~ ^(true|false)$ ]]; then
+        echo -e "\e[31mError:\e[0m \e[35m--flux-git-https-use-bearer-token\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+        PARAM_CHECK_PASS=false
+      elif [[ "$fluxGitHttpsUseTokenAuth" == true && "$fluxGitHttpsUseBearerToken" == true ]]; then
+        echo -e "\e[31mError:\e[0m Cannot set both \e[35m--flux-git-https-use-token-auth\e[0m and \e[35m--flux-git-https-use-bearer-token\e[0m to true\e[0m.."
+        PARAM_CHECK_PASS=false
+      elif [[ "$fluxGitHttpsUseBearerToken" = false ]] && [[ -z "$fluxGitHttpsUsername" ]]; then
+        echo -e "\e[31mError:\e[0m \e[35m--flux-git-https-username\e[0m is required when \e[35m--flux-git-https-use-bearer-token\e[0m is \e[35mfalse\e[0m."
+        PARAM_CHECK_PASS=false
+      fi
+      if [[ -n "$fluxGitHttpsCAFile" ]] && [[ ! -f "$fluxGitHttpsCAFile" ]]; then
+        echo -e "\e[31mError:\e[0m Flux Git CA file not found: \e[35m$fluxGitHttpsCAFile\e[0m. Please check \e[35m--flux-git-https-ca-file\e[0m."
+        PARAM_CHECK_PASS=false
+      fi
+      if [[ "$fluxGitHost" == "github.com" && "$fluxGitHttpsUseTokenAuth" == false && "$fluxGitHttpsUseBearerToken" == false ]]; then
+        echo -e "\e[31mError:\e[0m When connecting to GitHub via HTTPS you must set either \e[35m--flux-git-https-use-token-auth true\e[0m or \e[35m--flux-git-https-use-bearer-token true\e[0m."
+        PARAM_CHECK_PASS=false
+      fi
+    fi
+  fi
+fi
+
 if [[ "$nfsDefaultStorageClass" = true && "$smbDefaultStorageClass" = true ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--smb-default-storage-class\e[0m and \e[35m--nfs-default-storage-class\e[0m cannot both be set to true at the same time.\e[0m"
+  echo -e "\e[31mError:\e[0m \e[35m--smb-default-storage-class\e[0m and \e[35m--nfs-default-storage-class\e[0m cannot both be set to \e[35mtrue\e[0m at the same time.\e[0m"
+  PARAM_CHECK_PASS=false
 fi
 
 if [ $PARAM_CHECK_PASS == false ]; then
   exit 1
 fi
 
-# Install Kubernetes
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-
-# Check sudo & keep sudo running
-
-echo -e "\033[32mChecking root access\033[0m"
-
-if [ "$(id -u)" -ne 0 ]
-then
-  echo -e "\033[31mYou must run this script as root\033[0m"
-  exit
+if [ $PARAM_CHECK_WARN == true ]; then
+  sleep 10
 fi
 
-sudo -v
-while true; do  
-  sudo -nv; sleep 1m
-  kill -0 $$ 2>/dev/null || exit
-done &
+if [[ "$nfsDefaultStorageClass" = false && "$smbDefaultStorageClass" = false ]]; then
+  echo -e "\e[32mInfo:\e[0m The default storage class will be set to \e[35msmb\e[0m."
+  smbDefaultStorageClass=true
+fi
+
+if [[ "$k8sClusterName" != "kubernetes" ]]; then
+  echo -e "\e[32mInfo:\e[0m The cluster name will be \e[35m$k8sClusterName\e[0m."
+fi
+
+echo -e "\e[32mInfo:\e[0m The pod network will be \e[35m$k8sPodNetworkCIDR\e[0m."
+echo -e "\e[32mInfo:\e[0m The service network will be \e[35m$k8sServiceCIDR\e[0m."
+
+if [[ "$k8sVersion" == "latest" ]]; then
+  echo -e "\e[32mInfo:\e[0m The latest stable Kubernetes version will be installed."
+else
+  echo -e "\e[32mInfo:\e[0m Kubernetes version \e[35m$(echo $k8sVersion | sed 's/^v//')\e[0m will be installed."
+fi
+
+# Install Kubernetes
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # Prevent interactive needsrestart command
 
@@ -299,14 +559,16 @@ fi
 
 # Configure IP Settings
 
-if [ $configureTCPIPSetting == true ]; then
+if [ "$configureTCPIPSetting" == true ]; then
 
   echo -e "\033[32mConfiguring Network Settings\033[0m"
 
   IFS=. read -r i1 i2 i3 i4 <<< "$ipAddress"
   IFS=. read -r m1 m2 m3 m4 <<< "$netmask"
 
-  cidr=$(echo "obase=2; $(( (m1 << 24) + (m2 << 16) + (m3 << 8) + m4 ))" | bc | tr -d '\n' | sed 's/0*$//' | wc -c)
+  maskDec=$(( (m1 * 16777216) + (m2 * 65536) + (m3 * 256) + m4 ))
+  maskBin=$(echo "obase=2; $maskDec" | bc)
+  cidr=$(echo "$maskBin" | tr -d '\n' | sed 's/0*$//' | wc -c)
 
   cat <<EOF | tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
@@ -320,19 +582,21 @@ network:
       - to: default
         via: $defaultGateway
       nameservers:
-        search: [$(echo "${dnsSearch[@]}" | tr ' ' ',')]          
+        search: [$(echo "${dnsSearch[@]}" | tr ' ' ',')]
         addresses: [$(echo "${dnsServers[@]}" | tr ' ' ',')]
 EOF
 
   netplan apply
 fi
 
-# Install Prerequsites 
+# Install Prerequsite Packages
 
 echo -e "\033[32mInstalling prerequisites\033[0m"
 
-apt-get update -q
-apt-get install -qqy apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
+export APT_LOCK="-o DPkg::Lock::Timeout=600"
+
+apt-get update -qq $APT_LOCK
+apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
 
 # Add Docker Repository https://docs.docker.com/engine/install/ubuntu/
 
@@ -349,21 +613,13 @@ if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
     $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 fi
 
-# Add Kubernetes Respository
-
-if [ ! -f /etc/apt/sources.list.d/kubernetes.list ]; then
-  echo -e "\033[32mAdding Google Kubernetes repository\033[0m"
-  curl -fsSLo $KEYRINGS_DIR/kubernetes-archive-keyring.gpg https://dl.k8s.io/apt/doc/apt-key.gpg
-  echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | tee /etc/apt/sources.list.d/kubernetes.list
-fi
-
-apt-get update -q
-
 # Install Docker https://docs.docker.com/engine/install/ubuntu/
 
 echo -e "\033[32mInstalling Docker\033[0m"
 
-apt-get install -qqy docker-ce docker-ce-cli containerd.io
+apt-get update -qq $APT_LOCK
+apt-get install -qqy $APT_LOCK docker-ce docker-ce-cli
+
 tee /etc/docker/daemon.json >/dev/null <<EOF
 {
   "exec-opts": ["native.cgroupdriver=systemd"],
@@ -393,6 +649,104 @@ systemctl daemon-reload
 systemctl restart docker
 systemctl restart containerd
 
+# Install Kubernetes https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+
+echo -e "\033[32mInstalling Kubernetes\033[0m"
+
+# Discover latest kubernetes version
+
+normalize_k8s_version() {
+  case "$1" in
+    latest) echo latest ;;
+    v*|V*)  echo "${1#v}" | sed 's/^V//' ;;
+    *)      echo "$1" ;;
+  esac
+}
+
+pick_pkg_ver() {
+  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }'
+}
+
+if [ $k8sVersion == "latest" ]; then
+  k8sVersion=$(curl -s https://api.github.com/repos/kubernetes/kubernetes/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
+  echo "Detected latest Kubernetes version: $k8sVersion"
+fi
+
+k8sVersion="$(normalize_k8s_version "$k8sVersion")"
+IFS=. read -r K8S_MAJ K8S_MIN K8S_PATCH <<<"$k8sVersion"
+export K8S_REPO_VERSION="v${K8S_MAJ}.${K8S_MIN}"
+
+echo "Kubernetes version: $k8sVersion"
+echo "Using APT repo: $K8S_REPO_VERSION"
+
+if [ -n "$K8S_PATCH" ]; then  
+  VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.${K8S_PATCH}-"
+  KUBEADM_VERSION="v${K8S_MAJ}.${K8S_MIN}.${K8S_PATCH}"
+else  
+  VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.[0-9]+-"  
+  KUBEADM_VERSION=""
+fi
+
+# Add Kubernetes Repository
+
+if [ -f /etc/apt/sources.list.d/kubernetes.list ]; then
+  rm $KEYRINGS_DIR/kubernetes-apt-keyring.gpg
+  rm /etc/apt/sources.list.d/kubernetes.list
+fi
+
+echo -e "\033[32mAdding Kubernetes community repository\033[0m"
+curl -fsSL https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/Release.key | gpg --dearmor -o $KEYRINGS_DIR/kubernetes-apt-keyring.gpg    
+echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+
+apt-get update -qq $APT_LOCK
+
+kubeadm_ver="$(pick_pkg_ver kubeadm $VER_REGEX)"
+kubelet_ver="$(pick_pkg_ver kubelet $VER_REGEX)"
+kubectl_ver="$(pick_pkg_ver kubectl $VER_REGEX)"
+
+echo "Resolved kubeadm version: $kubeadm_ver"
+echo "Resolved kubelet version: $kubelet_ver"
+echo "Resolved kubectl version: $kubectl_ver"
+
+if [ -z "$kubeadm_ver" ] || [ -z "$kubelet_ver" ] || [ -z "$kubectl_ver" ]; then
+  echo -e "\e[31mError:\e[0m Could not find requested version in $K8S_REPO_VERSION.\n\nAvailable kubeadm versions in this minor:"  
+  apt-cache madison kubeadm | sed 's/^/  /'
+  exit 1
+fi
+
+if [ -z "$KUBEADM_VERSION" ]; then  
+  KUBEADM_VERSION="v$(echo "$kubeadm_ver" | cut -d- -f1)"
+fi
+
+echo "Using kubeadm version: $KUBEADM_VERSION"
+
+apt-get install -qqy $APT_LOCK kubeadm="$kubeadm_ver" kubelet="$kubelet_ver" kubectl="$kubectl_ver"
+
+apt-mark hold kubeadm kubelet kubectl
+
+# Configuring Prerequisites
+
+echo -e "\033[32mEnable IPv4 packet forwarding\033[0m"
+
+cat <<EOF | tee /etc/modules-load.d/k8s.conf
+overlay
+br_netfilter
+EOF
+
+modprobe overlay
+modprobe br_netfilter
+
+# Some of this config was required for older versions of Kubernetes.
+# See here: https://v1-28.docs.kubernetes.io/docs/setup/production-environment/container-runtimes/
+
+cat <<EOF | tee /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+EOF
+
+sysctl --system
+
 # Disabling Swap
 
 echo -e "\033[32mDisabling Swapping\033[0m"
@@ -410,21 +764,38 @@ else
   echo "Swap is already disabled"
 fi
 
-# Install Kubernetes https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
-
-echo -e "\033[32mInstalling Kubernetes\033[0m"
-
-if [ $k8sVersion == "latest" ]; then
-  apt-get install -qqy kubelet kubeadm kubectl
-else
-  apt-get install -qqy kubelet=$k8sVersion kubeadm=$k8sVersion kubectl=$k8sVersion
-fi
-
 # Init Kubernetes https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
+
+if [[ -z "$k8sKubeadmConfig" && "$k8sClusterName" == "kubernetes" ]]; then  
+  export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=$k8sPodNetworkCIDR --service-cidr=$k8sServiceCIDR --kubernetes-version=$KUBEADM_VERSION"
+else 
+  if [[ -z "$k8sKubeadmConfig" ]]; then
+    export k8sKubeadmConfig="/tmp/kubeadm-config.yaml"
+    cat <<EOF > $k8sKubeadmConfig
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: "$ipAddress"
+  bindPort: 6443
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+clusterName: "$k8sClusterName"
+kubernetesVersion: "$KUBEADM_VERSION"
+networking:
+  podSubnet: "$k8sPodNetworkCIDR"
+  serviceSubnet: "$k8sServiceCIDR"
+
+EOF
+  fi
+  echo -e "\033[32mValidating kubeadm config file\033[0m"
+  kubeadm config validate --config $k8sKubeadmConfig
+  export KUBEADM_ARGS="--config $k8sKubeadmConfig"
+fi
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
 
-kubeadm init --apiserver-advertise-address=$ipAddress --pod-network-cidr=10.244.0.0/16
+kubeadm init $KUBEADM_ARGS $k8sKubeadmOptions
 
 # Setup kube config files.
 
@@ -432,22 +803,99 @@ echo -e "\033[32mSetting up kubectl config files\033[0m"
 
 # Setup root user kubectl config file
 mkdir -p $HOME/.kube
-cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+cp -f /etc/kubernetes/admin.conf $HOME/.kube/config
 chown $(id -u):$(id -g) $HOME/.kube/config
 
 # Setup your user kubectl config file
 mkdir -p /home/$SUDO_USER/.kube
-cp -in /etc/kubernetes/admin.conf /home/$SUDO_USER/.kube/config 
+cp -f /etc/kubernetes/admin.conf /home/$SUDO_USER/.kube/config 
 chown $SUDO_USER /home/$SUDO_USER/.kube/config
 
-# Install Flannel networking (Kubernetes internal networking) https://github.com/flannel-io/flannel/#readme
+# Remove control-plane node taints
 
-echo -e "\033[32mInstalling Flannel Networking\033[0m"
+export hostname_lower=$(echo $HOSTNAME | tr '[:upper:]' '[:lower:]')
 
-sysctl net.bridge.bridge-nf-call-iptables=1
-sysctl -p
-kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml --wait --timeout=2m
-kubectl get nodes
+if [ $k8sAllowMasterNodeSchedule == true ]; then
+  echo -e "\033[32mRemoving NoSchedule taints\033[0m"
+
+  kubectl taint node $hostname_lower node-role.kubernetes.io/control-plane:NoSchedule- || true
+  kubectl taint node $hostname_lower node-role.kubernetes.io/master:NoSchedule- || true # for older versions
+fi
+
+# Install a CNI
+
+if [ $k8sCNI == "flannel" ]; then
+  # Flannel https://github.com/flannel-io/flannel/#readme
+
+  echo -e "\033[32mInstalling CNI: Flannel\033[0m"
+
+  sysctl net.bridge.bridge-nf-call-iptables=1
+  sysctl -p
+  kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml --wait --timeout=2m
+
+elif [ $k8sCNI == "cilium" ]; then
+  # Cilium https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/
+
+  echo -e "\033[32mInstalling CNI: Cilium\033[0m"
+
+  # Install Cilium CLI
+
+  if [ ! -f /usr/local/bin/cilium ]; then  
+    CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
+    CLI_ARCH=amd64
+    if [ "$(uname -m)" = "aarch64" ]; then CLI_ARCH=arm64; fi
+    curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+    sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
+    sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
+    rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+  fi
+
+  # Install Hubble Client
+
+  if [ ! -f /usr/local/bin/hubble ]; then
+    HUBBLE_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/hubble/master/stable.txt)
+    HUBBLE_ARCH=amd64
+    if [ "$(uname -m)" = "aarch64" ]; then HUBBLE_ARCH=arm64; fi
+    curl -L --fail --remote-name-all https://github.com/cilium/hubble/releases/download/$HUBBLE_VERSION/hubble-linux-${HUBBLE_ARCH}.tar.gz{,.sha256sum}
+    sha256sum --check hubble-linux-${HUBBLE_ARCH}.tar.gz.sha256sum
+    sudo tar xzvfC hubble-linux-${HUBBLE_ARCH}.tar.gz /usr/local/bin
+    rm hubble-linux-${HUBBLE_ARCH}.tar.gz{,.sha256sum}
+  fi
+
+  # Install Cilium
+
+  cilium install || true
+
+  # Enable Hubble & Hubble UI
+
+  if ! kubectl get deployment -n kube-system hubble-relay &> /dev/null; then
+    echo -e "\033[32mEnabling Hubble\033[0m"
+    cilium hubble enable
+  fi
+
+  if ! kubectl get deployment -n kube-system hubble-ui &> /dev/null; then
+    echo -e "\033[32mEnabling Hubble UI\033[0m"
+    cilium hubble enable --ui
+  fi
+
+  # Get Cilium status (Not all pods start up unless taint is removed)
+  
+  cilium upgrade --reuse-values \
+    --set hubble.relay.tolerations[0].key=node-role.kubernetes.io/control-plane \
+    --set hubble.relay.tolerations[0].operator=Exists \
+    --set hubble.relay.tolerations[0].effect=NoSchedule \
+    --set hubble.relay.tolerations[1].key=node-role.kubernetes.io/master \
+    --set hubble.relay.tolerations[1].operator=Exists \
+    --set hubble.relay.tolerations[1].effect=NoSchedule \
+    --set hubble.ui.tolerations[0].key=node-role.kubernetes.io/control-plane \
+    --set hubble.ui.tolerations[0].operator=Exists \
+    --set hubble.ui.tolerations[0].effect=NoSchedule \
+    --set hubble.ui.tolerations[1].key=node-role.kubernetes.io/master \
+    --set hubble.ui.tolerations[1].operator=Exists \
+    --set hubble.ui.tolerations[1].effect=NoSchedule  
+  
+  cilium status --wait
+fi
 
 # Install Helm
 
@@ -462,7 +910,7 @@ export INSTALL_NFS_DRIVER=false # Do not edit. Will be set to true if required
 if [ $nfsInstallServer == true ]; then
   echo -e "\033[32mInstall NFS File Server\033[0m"
 
-  apt install -qqy nfs-kernel-server
+  apt-get install -qqy $APT_LOCK nfs-kernel-server
   export NFS_CONFIG_FILE="/etc/exports"  
   if ! grep -q "$nfsSharePath" "$NFS_CONFIG_FILE"; then
     mkdir -p $nfsSharePath
@@ -479,16 +927,24 @@ elif [ "$nfsServer" != "$HOSTNAME" ]; then
   export INSTALL_NFS_DRIVER=true
 fi
 
+# Define annotations for CSI drivers based on CNI choice
+
+export CSI_CNI_ANNOTATIONS=""
+
+if [ $k8sCNI == "cilium" ]; then
+  CSI_CNI_ANNOTATIONS="--set controller.podAnnotations.\"cilium\.io/unmanaged\"=\"true\" --set node.podAnnotations.\"cilium\.io/unmanaged\"=\"true\""
+fi
+
 # NFS CSI Driver https://github.com/kubernetes-csi/csi-driver-nfs/tree/master/charts
 
 if [ $INSTALL_NFS_DRIVER == true ]; then
   echo -e "\033[32mInstall NFS CSI driver Helm chart\033[0m"
 
-  export NFS_SERVER_NAME_SAFE=$(echo "$nfsServer" | tr '.' '-')
+  export NFS_SERVER_NAME_SAFE=$(echo "$nfsServer" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
   export NFS_NAME_SPACE="kube-system"    
   export NFS_STORAGE_CLASS_FILE="nfsStorageClass.yaml"
   helm repo add csi-driver-nfs https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
-  helm install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE
+  helm install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE $CSI_CNI_ANNOTATIONS
    
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-nfs/blob/master/docs/driver-parameters.md
   cat <<EOF > $NFS_STORAGE_CLASS_FILE
@@ -518,7 +974,7 @@ export INSTALL_SMB_DRIVER=false # Do not edit. Will be set to true if required
 if [ $smbInstallServer == true ]; then
   echo -e "\033[32mInstall SMB File Server\033[0m"
 
-  apt install -qqy samba
+  apt-get install -qqy $APT_LOCK samba
   export SMB_CONFIG_FILE="/etc/samba/smb.conf"  
   if ! grep -q "$smbShareName" "$SMB_CONFIG_FILE"; then
     mkdir -p $smbSharePath
@@ -544,12 +1000,12 @@ fi
 if [ $INSTALL_SMB_DRIVER == true ]; then
   echo -e "\033[32mInstall SMB CSI driver Helm chart\033[0m"
 
-  export SMB_SERVER_NAME_SAFE=$(echo "$smbServer" | tr '.' '-')
+  export SMB_SERVER_NAME_SAFE=$(echo "$smbServer" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
   export SMB_NAME_SPACE="kube-system"
   export SMB_SECRET_NAME="smb-credentials-$SMB_SERVER_NAME_SAFE"  
   export SMB_STORAGE_CLASS_FILE="smbStorageClass.yaml"
   helm repo add csi-driver-smb https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts
-  helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true
+  helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true $CSI_CNI_ANNOTATIONS
   kubectl create secret generic $SMB_SECRET_NAME --from-literal username="$smbUsername" --from-literal password="$smbPassword" -n $SMB_NAME_SPACE
 
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-smb/blob/master/docs/driver-parameters.md
@@ -579,17 +1035,21 @@ EOF
   rm $SMB_STORAGE_CLASS_FILE
 fi
 
-# Install Metal LB https://metallb.universe.tf/installation/
+# Install MetalLB https://metallb.universe.tf/installation/
 
-if [ $k8sAllowMasterNodeSchedule == true ]; then
-  echo -e "\033[32mInstall and Configure Metal LB\033[0m"
+if [[ $k8sCNI != "none" ]]; then
+  echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
-  kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule-
-  kubectl taint node $HOSTNAME node-role.kubernetes.io/master:NoSchedule- # for older versions  
-  kubectl create namespace metallb-system
+  kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb
   helm repo update
-  helm upgrade -i metallb metallb/metallb -n metallb-system --wait
+  helm upgrade --install metallb metallb/metallb -n metallb-system --wait \
+    --set controller.tolerations[0].key=node-role.kubernetes.io/control-plane \
+    --set controller.tolerations[0].operator=Exists \
+    --set controller.tolerations[0].effect=NoSchedule \
+    --set controller.tolerations[1].key=node-role.kubernetes.io/master \
+    --set controller.tolerations[1].operator=Exists \
+    --set controller.tolerations[1].effect=NoSchedule
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
   export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
@@ -613,7 +1073,69 @@ EOF
   kubectl apply -f $METALLB_IPPOOL_L2AD -n metallb-system
   rm $METALLB_IPPOOL_L2AD
 else
-  echo -e "\033[33mSkipping Metal LB step. You will need to run this manually once you've added another node in order to access your pods from your local network.\033[0m"
+  echo -e "\033[33mSkipping Metal LB step. You will need to run this manually once you've installed a CNI in order to access your pods from your local network.\033[0m"
+fi
+
+# Install Metrics Server https://github.com/kubernetes-sigs/metrics-server/blob/master/README.md
+
+echo -e "\033[32mInstall Metrics Server\033[0m"
+
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system \
+  --set args={--kubelet-insecure-tls} \
+  --set tolerations[0].key=node-role.kubernetes.io/control-plane \
+  --set tolerations[0].operator=Exists \
+  --set tolerations[0].effect=NoSchedule \
+  --set tolerations[1].key=node-role.kubernetes.io/master \
+  --set tolerations[1].operator=Exists \
+  --set tolerations[1].effect=NoSchedule    
+
+# Install and bootstrap Flux CD https://fluxcd.io/flux/cmd/flux_bootstrap_git/
+
+if [[ "$fluxInstall" = true ]]; then
+  echo -e "\033[32mInstalling Flux CLI\033[0m"
+
+  curl -s https://fluxcd.io/install.sh | sudo bash
+  command -v flux >/dev/null && . <(flux completion bash)
+
+  echo -e "\033[32mStarting Flux Bootstrap\033[0m"  
+
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+
+  if [[ "$fluxGitAuthMethod" == "ssh" ]]; then
+    FLUX_BOOTSTRAP_ARGS="--url=ssh://git@$fluxGitHost/$fluxGitOrg/$fluxGitRepo --private-key-file=$fluxGitSshPrivateKeyFile"
+    if [[ -n "$fluxGitSshPrivateKeyPassword" ]]; then
+      FLUX_BOOTSTRAP_ARGS="$FLUX_BOOTSTRAP_ARGS --password=$fluxGitSshPrivateKeyPassword"
+    fi
+  elif [[ "$fluxGitAuthMethod" == "https" ]]; then
+    FLUX_BOOTSTRAP_ARGS="--url=https://$fluxGitHost/$fluxGitOrg/$fluxGitRepo --password=$fluxGitHttpsPassword"
+    if [[ "$fluxGitHttpsUseBearerToken" = false && -n "$fluxGitHttpsUsername" ]]; then
+      FLUX_BOOTSTRAP_ARGS="$FLUX_BOOTSTRAP_ARGS --username=$fluxGitHttpsUsername"
+    fi
+    if [[ "$fluxGitHttpsUseTokenAuth" = true ]]; then
+      FLUX_BOOTSTRAP_ARGS="$FLUX_BOOTSTRAP_ARGS --token-auth=true"
+    elif [[ "$fluxGitHttpsUseBearerToken" = true ]]; then
+      FLUX_BOOTSTRAP_ARGS="$FLUX_BOOTSTRAP_ARGS --with-bearer-token"
+    fi
+    if [[ -n "$fluxGitHttpsCAFile" ]]; then
+      FLUX_BOOTSTRAP_ARGS="$FLUX_BOOTSTRAP_ARGS --ca-file=$fluxGitHttpsCAFile"
+    fi
+  fi
+
+  if [[ -z "$fluxGitPath" ]]; then
+    if [[ "$k8sClusterName" == "kubernetes" ]]; then
+      fluxGitPath="clusters/$hostname_lower"
+    else
+      fluxGitPath="clusters/$k8sClusterName"
+    fi
+  fi  
+
+  flux bootstrap git $FLUX_BOOTSTRAP_ARGS \
+    --branch=$fluxGitBranch \
+    --path=$fluxGitPath \
+    --silent \
+    --toleration-keys=node-role.kubernetes.io/control-plane,node-role.kubernetes.io/master \
+    $fluxOptions || true
 fi
 
 # Print success message and tips
@@ -636,4 +1158,4 @@ echo -e "curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_w
     --k8s-master-ip $JOIN_IP \\
     --k8s-master-port $JOIN_PORT \\
     --token $JOIN_TOKEN \\
-    --discovery-token-ca-cert-hash $JOIN_CERT_HASH\n"
+    --discovery-token-ca-cert-hash $JOIN_CERT_HASH\n\033[0m"

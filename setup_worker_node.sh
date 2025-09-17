@@ -1,4 +1,27 @@
 #!/bin/bash
+set -euo pipefail
+
+echo -e '\e[35m      _         _       \e[36m _    ___       \e[0m'
+echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
+echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
+echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
+echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
+echo -e '\e[35m                Version:\e[36m 1.6.1\e[0m\n'
+echo -e '\e[35m  Kubernetes Installation Script:\e[36m Worker Node Edition\e[0m\n'
+
+# Check sudo & keep sudo running
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo -e "\033[31mYou must run this script as root\033[0m"
+  exit
+fi
+
+sudo -v
+while true; do  
+  sudo -nv; sleep 1m
+  kill -0 $$ 2>/dev/null || exit
+done &
 
 # Define Variables, Default Values & Parameters 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -27,8 +50,9 @@ export dnsSearch=("domain.local")                           # Your local DNS sea
 export k8sVersion="latest"
 export k8sMasterIP=""
 export k8sMasterPort="6443"
-export k8sToken=""                                          # This and the cert hash can be found by running 'kubeadm token create --print-join-command'
-export k8sTokenDiscoveryCaCertHash=""                       # on the master node
+export k8sToken=""                                          # This and the cert hash can be found by running 'kubeadm token create --print-join-command' on the master node
+export k8sTokenDiscoveryCaCertHash=""                       
+export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm join command.
 
 # ------------------------------
 # Parameters
@@ -47,23 +71,18 @@ while [[ $# -gt 0 ]]; do
         --k8s-version) k8sVersion="$2"; shift; shift;;
         --k8s-master-ip) k8sMasterIP="$2"; shift; shift;;
         --k8s-master-port) k8sMasterPort="$2"; shift; shift;;
+        --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
         --token) k8sToken="$2"; shift; shift;;
         --discovery-token-ca-cert-hash) k8sTokenDiscoveryCaCertHash="$2"; shift; shift;;
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
 done
 
-echo -e '\e[35m      _         _        \e[36m _    ___       \e[0m'
-echo -e '\e[35m     / \  _   _| |_ ___  \e[36m| | _( _ ) ___  \e[0m'
-echo -e '\e[35m    / _ \| | | | __/ _ \ \e[36m| |/ / _ \/ __| \e[0m'
-echo -e '\e[35m   / ___ \ |_| | || (_) |\e[36m|   < (_) \__ \ \e[0m'
-echo -e '\e[35m  /_/   \_\__,_|\__\___/ \e[36m|_|\_\___/|___/ \e[0m\n'
-echo -e '\e[35m  Kubernetes Installation Script:\e[36m Worker Node Edition\e[0m\n'
-
 # Perform Validation
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 export HARDWARE_CHECK_PASS=true
+export PARAM_CHECK_WARN=false
 
 export MIN_CPUS=2
 export CPU_COUNT=$(grep -c "^processor" /proc/cpuinfo)
@@ -123,6 +142,7 @@ if [[ "$configureTCPIPSetting" == true ]]; then
   fi
   if [[ "${#dnsServers[@]}" -gt 3 ]]; then
     echo -e "\e[33mWarning:\e[0m Number of DNS servers should not be greater than 3. Kubernetes may display errors but will continue to work."
+    PARAM_CHECK_WARN=true
   fi
   for ip in "${dnsServers[@]}"; do
     if [[ ! $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
@@ -130,6 +150,11 @@ if [[ "$configureTCPIPSetting" == true ]]; then
         PARAM_CHECK_PASS=false
     fi
   done
+fi
+
+if [[ ! $k8sVersion =~ ^(latest|[0-9]{1,2}(\.[0-9]{1,2}){1,2})$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-version\e[0m value \e[35m$k8sVersion\e[0m is not in the correct format."
+    PARAM_CHECK_PASS=false
 fi
 
 if [[ -z "$k8sMasterIP" ]]; then
@@ -164,24 +189,12 @@ if [ $PARAM_CHECK_PASS == false ]; then
   exit 1
 fi
 
-# Install Kubernetes
-# --------------------------------------------------------------------------------------------------------------------------------------------------------
-
-# Check sudo & keep sudo running
-
-echo -e "\033[32mChecking root access\033[0m"
-
-if [ "$(id -u)" -ne 0 ]
-then
-  echo -e "\033[31mYou must run this script as root\033[0m"
-  exit
+if [ $PARAM_CHECK_WARN == true ]; then
+  sleep 10
 fi
 
-sudo -v
-while true; do  
-  sudo -nv; sleep 1m
-  kill -0 $$ 2>/dev/null || exit
-done &
+# Install Kubernetes
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # Prevent interactive needsrestart command
 
@@ -201,7 +214,9 @@ if [ $configureTCPIPSetting == true ]; then
   IFS=. read -r i1 i2 i3 i4 <<< "$ipAddress"
   IFS=. read -r m1 m2 m3 m4 <<< "$netmask"
 
-  cidr=$(echo "obase=2; $(( (m1 << 24) + (m2 << 16) + (m3 << 8) + m4 ))" | bc | tr -d '\n' | sed 's/0*$//' | wc -c)
+  maskDec=$(( (m1 * 16777216) + (m2 * 65536) + (m3 * 256) + m4 ))
+  maskBin=$(echo "obase=2; $maskDec" | bc)
+  cidr=$(echo "$maskBin" | tr -d '\n' | sed 's/0*$//' | wc -c)
 
   cat <<EOF | tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
@@ -222,12 +237,14 @@ EOF
   netplan apply
 fi
 
-# Install Prerequsites 
+# Install Prerequsite Packages
+
+export APT_LOCK="-o DPkg::Lock::Timeout=600"
 
 echo -e "\033[32mInstalling prerequisites\033[0m"
 
-apt-get update -q
-apt-get install -qqy apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
+apt-get update -qq $APT_LOCK
+apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
 
 # Add Docker Repository https://docs.docker.com/engine/install/ubuntu/
 
@@ -244,21 +261,15 @@ if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
     $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 fi
 
-# Add Kubernetes Respository
-
-if [ ! -f /etc/apt/sources.list.d/kubernetes.list ]; then
-  echo -e "\033[32mAdding Google Kubernetes repository\033[0m"
-  curl -fsSLo $KEYRINGS_DIR/kubernetes-archive-keyring.gpg https://dl.k8s.io/apt/doc/apt-key.gpg
-  echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | tee /etc/apt/sources.list.d/kubernetes.list
-fi
-
-apt-get update -q
-
 # Install Docker https://docs.docker.com/engine/install/ubuntu/
 
 echo -e "\033[32mInstalling Docker\033[0m"
 
-apt-get install -qqy docker-ce docker-ce-cli containerd.io
+sleep 1 # Sleep for a second in case of file locks
+
+apt-get update -qq $APT_LOCK
+apt-get install -qqy $APT_LOCK docker-ce docker-ce-cli
+
 tee /etc/docker/daemon.json >/dev/null <<EOF
 {
   "exec-opts": ["native.cgroupdriver=systemd"],
@@ -288,6 +299,104 @@ systemctl daemon-reload
 systemctl restart docker
 systemctl restart containerd
 
+# Install Kubernetes https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+
+echo -e "\033[32mInstalling Kubernetes\033[0m"
+
+# Discover latest kubernetes version
+
+normalize_k8s_version() {
+  case "$1" in
+    latest) echo latest ;;
+    v*|V*)  echo "${1#v}" | sed 's/^V//' ;;
+    *)      echo "$1" ;;
+  esac
+}
+
+pick_pkg_ver() {
+  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }'
+}
+
+if [ $k8sVersion == "latest" ]; then
+  k8sVersion=$(curl -s https://api.github.com/repos/kubernetes/kubernetes/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
+  echo "Detected latest Kubernetes version: $k8sVersion"
+fi
+
+k8sVersion="$(normalize_k8s_version "$k8sVersion")"
+IFS=. read -r K8S_MAJ K8S_MIN K8S_PATCH <<<"$k8sVersion"
+export K8S_REPO_VERSION="v${K8S_MAJ}.${K8S_MIN}"
+
+echo "Kubernetes version: $k8sVersion"
+echo "Using APT repo: $K8S_REPO_VERSION"
+
+if [ -n "$K8S_PATCH" ]; then  
+  VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.${K8S_PATCH}-"
+  KUBEADM_VERSION="v${K8S_MAJ}.${K8S_MIN}.${K8S_PATCH}"
+else  
+  VER_REGEX="^${K8S_MAJ}\\\\.${K8S_MIN}\\\\.[0-9]+-"  
+  KUBEADM_VERSION=""
+fi
+
+# Add Kubernetes Repository
+
+if [ -f /etc/apt/sources.list.d/kubernetes.list ]; then
+  rm $KEYRINGS_DIR/kubernetes-apt-keyring.gpg
+  rm /etc/apt/sources.list.d/kubernetes.list
+fi
+
+echo -e "\033[32mAdding Kubernetes community repository\033[0m"
+curl -fsSL https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/Release.key | gpg --dearmor -o $KEYRINGS_DIR/kubernetes-apt-keyring.gpg    
+echo "deb [signed-by=$KEYRINGS_DIR/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$K8S_REPO_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+
+apt-get update -qq $APT_LOCK
+
+kubeadm_ver="$(pick_pkg_ver kubeadm $VER_REGEX)"
+kubelet_ver="$(pick_pkg_ver kubelet $VER_REGEX)"
+kubectl_ver="$(pick_pkg_ver kubectl $VER_REGEX)"
+
+echo "Resolved kubeadm version: $kubeadm_ver"
+echo "Resolved kubelet version: $kubelet_ver"
+echo "Resolved kubectl version: $kubectl_ver"
+
+if [ -z "$kubeadm_ver" ] || [ -z "$kubelet_ver" ] || [ -z "$kubectl_ver" ]; then
+  echo -e "\e[31mError:\e[0m Could not find requested version in $K8S_REPO_VERSION.\n\nAvailable kubeadm versions in this minor:"  
+  apt-cache madison kubeadm | sed 's/^/  /'
+  exit 1
+fi
+
+if [ -z "$KUBEADM_VERSION" ]; then  
+  KUBEADM_VERSION="v$(echo "$kubeadm_ver" | cut -d- -f1)"
+fi
+
+echo "Using kubeadm version: $KUBEADM_VERSION"
+
+apt-get install -qqy $APT_LOCK kubeadm="$kubeadm_ver" kubelet="$kubelet_ver" kubectl="$kubectl_ver"
+
+apt-mark hold kubeadm kubelet kubectl
+
+# Configuring Prerequisites
+
+echo -e "\033[32mEnable IPv4 packet forwarding\033[0m"
+
+cat <<EOF | tee /etc/modules-load.d/k8s.conf
+overlay
+br_netfilter
+EOF
+
+modprobe overlay
+modprobe br_netfilter
+
+# Some of this config was required for older versions of Kubernetes.
+# See here: https://v1-28.docs.kubernetes.io/docs/setup/production-environment/container-runtimes/
+
+cat <<EOF | tee /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+EOF
+
+sysctl --system
+
 # Disabling Swap
 
 echo -e "\033[32mDisabling Swapping\033[0m"
@@ -305,22 +414,12 @@ else
   echo "Swap is already disabled"
 fi
 
-# Install Kubernetes https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
-
-echo -e "\033[32mInstalling Kubernetes\033[0m"
-
-if [ $k8sVersion == "latest" ]; then
-  apt-get install -qqy kubelet kubeadm kubectl
-else
-  apt-get install -qqy kubelet=$k8sVersion kubeadm=$k8sVersion kubectl=$k8sVersion
-fi
-
 # Join Cluster
 
 echo -e "\033[32mJoining Kubernetes Cluster\033[0m"
 
-kubeadm join $k8sMasterIP:$k8sMasterPort --token $k8sToken --discovery-token-ca-cert-hash $k8sTokenDiscoveryCaCertHash
+kubeadm join $k8sMasterIP:$k8sMasterPort --token $k8sToken --discovery-token-ca-cert-hash $k8sTokenDiscoveryCaCertHash $k8sKubeadmOptions
 
-# Print success message and tips
+# Print success message
 
 echo -e "\033[32m\nInstallation Complete!\n\033[0m"
