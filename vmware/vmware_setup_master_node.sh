@@ -1,13 +1,26 @@
 #!/bin/bash
+set -euo pipefail
+
+echo -e '\e[35m      _         _       \e[36m _    ___       \e[0m'
+echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
+echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
+echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
+echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
+echo -e '\e[35m                Version:\e[36m 1.6.1\e[0m\n'
+echo -e '\e[35m  Kubernetes Installation Script:\e[36m VMWare vSphere CSI and CPI Setup\e[0m'
+echo -e '\e[35m                                 \e[36m Master Node Edition\e[0m\n'
 
 # Define Variables, Default Values & Parameters 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
+export VCENTER_ADDR=""
+export VCENTER_PASSWORD=""
 export VCENTER_USERNAME="administrator@vsphere.local"
 export VCENTER_INSECURE=false
 export VCENTER_DATACENTER_NAME="Datacenter"
+export VCENTER_DATASTORES=""
 export VCENTER_DATASTORES_DELIMITER=","
-export VSPHERE_CSI_DRIVER_VERSION="v3.0.0"
+export VSPHERE_CSI_DRIVER_VERSION="latest"
 export STORAGE_CLASS_NAME_PREFIX="vsphere-csi"
 
 # ------------------------------
@@ -30,14 +43,6 @@ while [[ $# -gt 0 ]]; do
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
 done
-
-echo -e '\e[35m      _         _        \e[36m _    ___       \e[0m'
-echo -e '\e[35m     / \  _   _| |_ ___  \e[36m| | _( _ ) ___  \e[0m'
-echo -e '\e[35m    / _ \| | | | __/ _ \ \e[36m| |/ / _ \/ __| \e[0m'
-echo -e '\e[35m   / ___ \ |_| | || (_) |\e[36m|   < (_) \__ \ \e[0m'
-echo -e '\e[35m  /_/   \_\__,_|\__\___/ \e[36m|_|\_\___/|___/ \e[0m\n'
-echo -e '\e[35m  Kubernetes Installation Script:\e[36m VMWare vSphere CSI and CPI Setup\e[0m'
-echo -e '\e[35m                                 \e[36m Master Node Edition\e[0m\n'
 
 # Perform Validation
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -80,7 +85,7 @@ if [[ -z "$VCENTER_DATASTORES" ]]; then
 fi
 
 if [[ -z "$VSPHERE_CSI_DRIVER_VERSION" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vsphere-csi-driver-version\e[0m is required! (Default: v3.0.0)"
+    echo -e "\e[31mError:\e[0m \e[35m--vsphere-csi-driver-version\e[0m is required! (Default: latest)"
     PARAM_CHECK_PASS=false
 fi
 
@@ -131,25 +136,18 @@ else
     echo "jq already installed"
 fi
 
+if [ $VSPHERE_CSI_DRIVER_VERSION == "latest" ]; then
+  VSPHERE_CSI_DRIVER_VERSION=$(curl -s https://api.github.com/repos/kubernetes-sigs/vsphere-csi-driver/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
+  echo "Detected latest CSI driver version: $VSPHERE_CSI_DRIVER_VERSION"
+fi
+
 # Download and Install govc
 # https://www.msystechnologies.com/blog/learn-how-to-install-configure-and-test-govc/
 
 echo -e "\n\033[36mInstall and Configure govc\033[0m"
 
-export GOVC_VERSION="v0.34.2"
-export GOVC_VERSION_FILENAME="govc_Linux_x86_64.tar.gz"
-export GOVC_DOWNLOAD_DIR="./govc"
-export GOVC_DOWNLOAD_FILE="$GOVC_DOWNLOAD_DIR/$GOVC_VERSION_FILENAME"
-
-which govc 1>/dev/null 2>/dev/null
-if [ $? -ne 0 ]; then    
-    mkdir -p $GOVC_DOWNLOAD_DIR
-    wget -O $GOVC_DOWNLOAD_FILE https://github.com/vmware/govmomi/releases/download/$GOVC_VERSION/$GOVC_VERSION_FILENAME      
-    tar -zxvf $GOVC_DOWNLOAD_FILE -C $GOVC_DOWNLOAD_DIR                
-    sudo chmod +x $GOVC_DOWNLOAD_DIR/govc
-    sudo cp $GOVC_DOWNLOAD_DIR/govc /usr/local/bin    
-    rm -r $GOVC_DOWNLOAD_DIR
-    echo -e "\033[32mDone.\033[0m"
+if [[ ! -f "/usr/local/bin/govc" ]]; then    
+    curl -L -o - "https://github.com/vmware/govmomi/releases/latest/download/govc_$(uname -s)_$(uname -m).tar.gz" | tar -C /usr/local/bin -xvzf - govc
 else
     echo "govc already installed"
 fi
@@ -240,19 +238,37 @@ else
     fi
 fi
 
-# Install VMWare CPI driver Helm chart
+# Search for datastore info
 
-echo -e "\n\033[36mInstall VMWare CPI driver Helm chart\033[0m"
+echo -e "\n\033[36mSearch for datastore(s)\033[0m"
 
-helm repo add vsphere-cpi https://kubernetes.github.io/cloud-provider-vsphere
-helm repo update
-helm upgrade --install vsphere-cpi vsphere-cpi/vsphere-cpi \
-    --namespace kube-system \
-    --set config.enabled=true \
-    --set config.vcenter=$VCENTER_ADDR \
-    --set config.username=$VCENTER_USERNAME \
-    --set config.password=$VCENTER_PASSWORD \
-    --set config.datacenter=$VCENTER_DATACENTER_NAME
+declare -A storageClasses
+
+IFS=$VCENTER_DATASTORES_DELIMITER read -r -a datastores <<< "$VCENTER_DATASTORES"
+for datastore in "${datastores[@]}"; do
+    echo -e "Name: \033[35m$datastore\033[0m"
+    datastorePath="/$VCENTER_DATACENTER_NAME/datastore/$datastore"
+    datastoreInfo=$(govc datastore.info "$datastorePath")
+    if [[ $? -ne 0 ]]; then
+        echo -e "\033[33mERROR: Failed to find datastore $datastorePath.\033[0m\n"        
+    else
+        url=$(echo "$datastoreInfo" | grep 'URL:' | awk '{print $2}')
+        capacity=$(echo "$datastoreInfo" | grep 'Capacity:' | awk '{print $2 " " $3}')
+        free=$(echo "$datastoreInfo" | grep 'Free:' | awk '{print $2 " " $3}')        
+        echo -e "Capacity: $capacity"
+        echo -e "Free: $free"
+        echo -e "URL: $url\n"
+        storageClasses[$datastore]=$url        
+    fi
+done
+
+if [ ${#storageClasses[@]} -eq 0 ]; then
+    echo -e "\033[31mERROR: Could not find any of the specified datastores.\033[0m"
+    echo -e "\033[31m       You will need to create your storage classes manually.\033[0m"
+    exit 1
+fi
+
+echo -e "\033[32mSuccessfully found ${#storageClasses[@]} of ${#datastores[@]} datastore(s).\033[0m"
 
 # Install VMWare CSI driver Helm chart
 # https://docs.vmware.com/en/VMware-vSphere-Container-Storage-Plug-in/3.0/vmware-vsphere-csp-getting-started/GUID-A1982536-F741-4614-A6F2-ADEE21AA4588.html
@@ -270,44 +286,14 @@ password = "$VCENTER_PASSWORD"
 datacenters = "$VCENTER_DATACENTER_NAME"
 EOF
 
-kubectl create namespace $VMWARE_CSI_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
-kubectl create secret generic vsphere-config-secret --from-file=$CSI_VSPHERE_CONF --namespace=$VMWARE_CSI_NAMESPACE
+export KUBECONFIG="/etc/kubernetes/admin.conf"
+export CSI_DRIVER_BASE_URL="https://raw.githubusercontent.com/kubernetes-sigs/vsphere-csi-driver/v$VSPHERE_CSI_DRIVER_VERSION/manifests/vanilla"
+
+kubectl apply -f $CSI_DRIVER_BASE_URL/namespace.yaml
+kubectl apply -f $CSI_DRIVER_BASE_URL/vsphere-csi-driver.yaml
+kubectl create secret generic vsphere-config-secret --from-file=$CSI_VSPHERE_CONF --namespace=$VMWARE_CSI_NAMESPACE --dry-run -o yaml | kubectl apply -f -
 
 rm $CSI_VSPHERE_CONF
-
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/vsphere-csi-driver/$VSPHERE_CSI_DRIVER_VERSION/manifests/vanilla/vsphere-csi-driver.yaml
-
-# Search for datastore info
-
-echo -e "\n\033[36mSearch for datastore(s)\033[0m"
-
-declare -A storageClasses
-
-IFS=$VCENTER_DATASTORES_DELIMITER read -r -a datastores <<< "$VCENTER_DATASTORES"
-for datastore in "${datastores[@]}"; do
-    echo -e "Name: \033[35m$datastore\033[0m"
-    datastorePath="/$VCENTER_DATACENTER_NAME/datastore/$datastore"
-    datastoreInfo=$(govc datastore.info "$datastorePath")
-    if [[ $? -ne 0 ]]; then
-        echo -e "\033[33mERROR: Failed to find datastore $datastorePath.\033[0m\n"        
-    else
-        url=$(echo "$echo $datastoreInfo" | grep 'URL:' | awk '{print $2}')
-        capacity=$(echo "$echo $datastoreInfo" | grep 'Capacity:' | awk '{print $2 " " $3}')
-        free=$(echo "$echo $datastoreInfo" | grep 'Free:' | awk '{print $2 " " $3}')        
-        echo -e "Capacity: $capacity"
-        echo -e "Free: $free"
-        echo -e "URL: $url\n"
-        storageClasses[$datastore]=$url        
-    fi
-done
-
-if [ ${#storageClasses[@]} -eq 0 ]; then
-    echo -e "\033[31mERROR: Could not find any of the specified datastores.\033[0m"
-    echo -e "\033[31m       You will need to create your storage classes manually.\033[0m"
-    exit 1
-fi
-
-echo -e "\033[32mSuccessfully found ${#storageClasses[@]} of ${#datastores[@]} datastore(s).\033[0m"
 
 # Create storage class(es)
 # https://docs.vmware.com/en/VMware-Tanzu-Kubernetes-Grid-Integrated-Edition/1.13/tkgi/GUID-vsphere-cns-manual.html
@@ -364,5 +350,20 @@ EOF
         echo -e "\033[33mERROR: Failed to create storage class for $datastore.\033[0m\n"  
     fi
 done
+
+
+# Install VMWare CPI driver Helm chart
+
+echo -e "\n\033[36mInstall VMWare CPI driver Helm chart\033[0m"
+
+helm repo add vsphere-cpi https://kubernetes.github.io/cloud-provider-vsphere
+helm repo update
+helm upgrade --install vsphere-cpi vsphere-cpi/vsphere-cpi \
+    --namespace kube-system \
+    --set config.enabled=true \
+    --set config.vcenter=$VCENTER_ADDR \
+    --set config.username=$VCENTER_USERNAME \
+    --set config.password=$VCENTER_PASSWORD \
+    --set config.datacenter=$VCENTER_DATACENTER_NAME
 
 echo -e "\033[32mInstallation Complete!\n\033[0m"
