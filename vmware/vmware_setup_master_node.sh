@@ -1,5 +1,4 @@
 #!/bin/bash
-set -euo pipefail
 
 echo -e '\e[35m      _         _       \e[36m _    ___       \e[0m'
 echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
@@ -22,6 +21,8 @@ export VCENTER_DATASTORES=""
 export VCENTER_DATASTORES_DELIMITER=","
 export VSPHERE_CSI_DRIVER_VERSION="latest"
 export STORAGE_CLASS_NAME_PREFIX="vsphere-csi"
+export INSTALL_VSPHERE_CPI_DRIVER=false
+export VSPHERE_CPI_LABELS="region=k8s-region, zone=k8s-zone"
 
 # ------------------------------
 # Parameters
@@ -40,6 +41,8 @@ while [[ $# -gt 0 ]]; do
         --vcenter-datastores-delimiter) VCENTER_DATASTORES_DELIMITER=($2); shift; shift;;
         --vsphere-csi-driver-version) VSPHERE_CSI_DRIVER_VERSION="$2"; shift; shift;;
         --storage-class-name-prefix) STORAGE_CLASS_NAME_PREFIX="$2"; shift; shift;;
+        --install-vsphere-cpi-driver) INSTALL_VSPHERE_CPI_DRIVER="$2"; shift; shift;;
+        --vsphere-cpi-labels) VSPHERE_CPI_LABELS="$2"; shift; shift;;
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
 done
@@ -71,16 +74,6 @@ fi
 
 if [[ -z "$VCENTER_DATACENTER_NAME" ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--vcenter-datacenter\e[0m is required! (Default: 'Datacenter')"
-    PARAM_CHECK_PASS=false
-fi
-
-if [[ -z "$VCENTER_DATASTORES" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-datastores\e[0m is required!"
-    PARAM_CHECK_PASS=false
-fi
-
-if [[ -z "$VCENTER_DATASTORES" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-datastores\e[0m is required! (Comma separated names of datastores)"
     PARAM_CHECK_PASS=false
 fi
 
@@ -123,23 +116,16 @@ if [ -f $NEEDSRESART_CONF ]; then
   sed -i "/#\$nrconf{restart} = 'i';/s/.*/\$nrconf{restart} = 'a';/" $NEEDSRESART_CONF
 fi
 
-# Install jq
+export APT_LOCK="-o DPkg::Lock::Timeout=600"
 
-echo -e "\n\033[36mInstall jq\033[0m"
+# Install jq & yq
 
-which jq 1>/dev/null 2>/dev/null
-if [ $? -ne 0 ]; then    
-    apt-get update -q
-    apt-get install jq -qqy    
-    echo -e "\033[32mDone.\033[0m"
-else
-    echo "jq already installed"
-fi
+echo -e "\n\033[36mInstall jq & yq\033[0m"
 
-if [ $VSPHERE_CSI_DRIVER_VERSION == "latest" ]; then
-  VSPHERE_CSI_DRIVER_VERSION=$(curl -s https://api.github.com/repos/kubernetes-sigs/vsphere-csi-driver/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
-  echo "Detected latest CSI driver version: $VSPHERE_CSI_DRIVER_VERSION"
-fi
+apt-get update -qq $APT_LOCK
+apt-get install jq yq -qqy $APT_LOCK
+
+echo -e "\033[32mDone.\033[0m"
 
 # Download and Install govc
 # https://www.msystechnologies.com/blog/learn-how-to-install-configure-and-test-govc/
@@ -242,6 +228,14 @@ fi
 
 echo -e "\n\033[36mSearch for datastore(s)\033[0m"
 
+export autoDetectDatastores=false
+
+if [[ -z "$VCENTER_DATASTORES" ]]; then  
+  echo -e "No datastores specified, listing all datastores in datacenter '$VCENTER_DATACENTER_NAME'.\n"
+  autoDetectDatastores=true
+  VCENTER_DATASTORES=$(govc ls /$VCENTER_DATACENTER_NAME/datastore | sed "s|^/$VCENTER_DATACENTER_NAME/datastore/||" | tr '\n' ',' | sed 's/,$//')
+fi
+
 declare -A storageClasses
 
 IFS=$VCENTER_DATASTORES_DELIMITER read -r -a datastores <<< "$VCENTER_DATASTORES"
@@ -268,12 +262,21 @@ if [ ${#storageClasses[@]} -eq 0 ]; then
     exit 1
 fi
 
-echo -e "\033[32mSuccessfully found ${#storageClasses[@]} of ${#datastores[@]} datastore(s).\033[0m"
+if [[ $autoDetectDatastores == true ]]; then
+  echo -e "\033[32mDiscovered ${#storageClasses[@]} datastore(s).\033[0m"
+else
+  echo -e "\033[32mSuccessfully found ${#storageClasses[@]} of ${#datastores[@]} datastore(s).\033[0m"
+fi
 
 # Install VMWare CSI driver Helm chart
 # https://docs.vmware.com/en/VMware-vSphere-Container-Storage-Plug-in/3.0/vmware-vsphere-csp-getting-started/GUID-A1982536-F741-4614-A6F2-ADEE21AA4588.html
 
 echo -e "\n\033[36mInstall VMWare CSI driver\033[0m"
+
+if [ $VSPHERE_CSI_DRIVER_VERSION == "latest" ]; then
+  VSPHERE_CSI_DRIVER_VERSION=$(curl -s https://api.github.com/repos/kubernetes-sigs/vsphere-csi-driver/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
+  echo "Detected latest CSI driver version: $VSPHERE_CSI_DRIVER_VERSION\n"
+fi
 
 export VMWARE_CSI_NAMESPACE="vmware-system-csi"
 export CSI_VSPHERE_CONF="csi-vsphere.conf"
@@ -291,7 +294,7 @@ export CSI_DRIVER_BASE_URL="https://raw.githubusercontent.com/kubernetes-sigs/vs
 
 kubectl apply -f $CSI_DRIVER_BASE_URL/namespace.yaml
 kubectl apply -f $CSI_DRIVER_BASE_URL/vsphere-csi-driver.yaml
-kubectl create secret generic vsphere-config-secret --from-file=$CSI_VSPHERE_CONF --namespace=$VMWARE_CSI_NAMESPACE --dry-run -o yaml | kubectl apply -f -
+kubectl create secret generic vsphere-config-secret --from-file=$CSI_VSPHERE_CONF --namespace=$VMWARE_CSI_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
 
 rm $CSI_VSPHERE_CONF
 
@@ -351,19 +354,96 @@ EOF
     fi
 done
 
-
 # Install VMWare CPI driver Helm chart
 
-echo -e "\n\033[36mInstall VMWare CPI driver Helm chart\033[0m"
+# todo: Check if labels are already set on VM
+# todo: Add validation for labels parameter via regex
 
-helm repo add vsphere-cpi https://kubernetes.github.io/cloud-provider-vsphere
-helm repo update
-helm upgrade --install vsphere-cpi vsphere-cpi/vsphere-cpi \
-    --namespace kube-system \
-    --set config.enabled=true \
-    --set config.vcenter=$VCENTER_ADDR \
-    --set config.username=$VCENTER_USERNAME \
-    --set config.password=$VCENTER_PASSWORD \
-    --set config.datacenter=$VCENTER_DATACENTER_NAME
+if [[ $INSTALL_VSPHERE_CPI_DRIVER == true ]]; then 
+  echo -e "\033[36mInstall VMWare CPI driver\033[0m"
 
-echo -e "\033[32mInstallation Complete!\n\033[0m"
+  export VSPHERE_CPI_LABELS_YAML=""
+
+  IFS=',' read -ra label_pairs <<< "$VSPHERE_CPI_LABELS"
+  for pair in "${label_pairs[@]}"; do
+    key=$(echo "$pair" | cut -d'=' -f1 | xargs)
+    value=$(echo "$pair" | cut -d'=' -f2- | xargs)
+    echo -e "\nChecking tag category: \033[35m$value\033[0m"    
+    tag_details=$(govc tags.category.info "$value" 2>&1)
+    if [ $? -ne 0 ]; then
+      echo -e "\033[33mNot found. Ignoring\033[0m"
+    else
+      echo -e "\033[32mFound!\033[0m"
+      [[ -n "$key" && -n "$value" ]] && VSPHERE_CPI_LABELS_YAML="$VSPHERE_CPI_LABELS_YAML \"$key\": \"$value\","
+    fi    
+  done
+
+  export KUBE_CONTROLLER_MANAGER_CONF="/etc/kubernetes/manifests/kube-controller-manager.yaml"
+
+  if [[ $(cat $KUBE_CONTROLLER_MANAGER_CONF | grep -c "cloud-provider=external") == 0 ]]; then
+    echo -e "\n\033[36mConfigure kube-controller-manager for external cloud provider\033[0m"
+    yq -iy '.spec.containers[0].command += ["--cloud-provider=external"]' $KUBE_CONTROLLER_MANAGER_CONF 
+  else
+    echo -e "\n\033[36mkube-controller-manager already configured for external cloud provider\033[0m"
+  fi
+
+  echo -e "\n\033[36mCreate vSphere cloud configmap and secret\033[0m"
+
+  export VSPHERE_CONF="
+global:
+  port: 443  
+  insecureFlag: $VCENTER_INSECURE  
+  secretName: vsphere-cloud-secret
+  secretNamespace: kube-system  
+vcenter:
+  $VCENTER_ADDR:
+    server: $VCENTER_ADDR
+    datacenters:
+      - $VCENTER_DATACENTER_NAME
+labels: {}
+"
+  VSPHERE_CONF=$(printf "%s\n" "$VSPHERE_CONF" | yq -y ".labels += { $VSPHERE_CPI_LABELS_YAML }")
+
+  export VMWARE_CPI_NAMESPACE="vmware-system-cpi"
+  export SECRET_FILE="vsphere-cloud-secret.yaml"
+  export CONFIGMAP_FILE="vsphere-cloud-config.yaml"    
+
+  cat <<EOF > $SECRET_FILE
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vsphere-cloud-secret
+  namespace: $VMWARE_CPI_NAMESPACE
+stringData:
+  $VCENTER_ADDR.username: $VCENTER_USERNAME
+  $VCENTER_ADDR.password: $VCENTER_PASSWORD
+EOF
+
+  cat <<EOF > $CONFIGMAP_FILE
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud-config
+  namespace: $VMWARE_CPI_NAMESPACE
+data:
+  vsphere.conf: >
+$(echo "$VSPHERE_CONF" | sed 's/^/    /')
+EOF
+
+  kubectl create namespace $VMWARE_CPI_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+
+  kubectl apply -f $CONFIGMAP_FILE && rm $CONFIGMAP_FILE
+  kubectl apply -f $SECRET_FILE && rm $SECRET_FILE
+
+  echo -e "\n\033[36mInstall VMWare CPI driver Helm chart\033[0m"
+
+  helm repo add vsphere-cpi https://kubernetes.github.io/cloud-provider-vsphere
+  helm repo update
+  helm upgrade --install vsphere-cpi vsphere-cpi/vsphere-cpi --namespace $VMWARE_CPI_NAMESPACE --wait
+
+  echo -e "\n\033[36mTaint all nodes\033[0m"
+  # Nodes need to be tainted in order for the CPI driver to complete the node registration. Taints are removed by the CPI driver once the nodes are registered.
+  kubectl taint nodes --all node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule --overwrite
+fi
+
+echo -e "\n\033[32mInstallation Complete!\n\033[0m"  
