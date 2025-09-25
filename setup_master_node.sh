@@ -766,9 +766,6 @@ fi
 
 # Init Kubernetes https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
 
-# todo: add option to include cloud-provider: external param or config
-# todo: Either remove the cloudprovider taint after init or add toleration everywhere
-
 if [[ -z "$k8sKubeadmConfig" && "$k8sClusterName" == "kubernetes" ]]; then  
   export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=$k8sPodNetworkCIDR --service-cidr=$k8sServiceCIDR --kubernetes-version=$KUBEADM_VERSION"
 else 
@@ -780,9 +777,6 @@ kind: InitConfiguration
 localAPIEndpoint:
   advertiseAddress: "$ipAddress"
   bindPort: 6443
-nodeRegistration:
-  kubeletExtraArgs:
-    cloud-provider: external
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
