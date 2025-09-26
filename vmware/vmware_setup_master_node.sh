@@ -22,7 +22,8 @@ export VCENTER_DATASTORES_DELIMITER=","
 export VSPHERE_CSI_DRIVER_VERSION="latest"
 export STORAGE_CLASS_NAME_PREFIX="vsphere-csi"
 export INSTALL_VSPHERE_CPI_DRIVER=false
-export VSPHERE_CPI_LABELS="region=k8s-region, zone=k8s-zone"
+export VSPHERE_CPI_LABELS="region=k8s-region,zone=k8s-zone"
+export VSPHERE_CPI_CONFIG_FILE=""
 
 # ------------------------------
 # Parameters
@@ -43,6 +44,7 @@ while [[ $# -gt 0 ]]; do
         --storage-class-name-prefix) STORAGE_CLASS_NAME_PREFIX="$2"; shift; shift;;
         --install-vsphere-cpi-driver) INSTALL_VSPHERE_CPI_DRIVER="$2"; shift; shift;;
         --vsphere-cpi-labels) VSPHERE_CPI_LABELS="$2"; shift; shift;;
+        --vsphere-cpi-config-file) VSPHERE_CPI_CONFIG_FILE="$2"; shift; shift;;
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
 done
@@ -51,6 +53,7 @@ done
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 export PARAM_CHECK_PASS=true
+export PARAM_CHECK_WARN=false
 
 if [[ ! "$VCENTER_INSECURE" =~ ^(true|false)$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--vcenter-insecure\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
@@ -87,9 +90,31 @@ if [[ -z "$STORAGE_CLASS_NAME_PREFIX" ]]; then
     PARAM_CHECK_PASS=false
 fi
 
+if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && ! -f "$VSPHERE_CPI_CONFIG_FILE" ]]; then
+    echo -e "\e[31mError:\e[0m The file \e[35m$VSPHERE_CPI_CONFIG_FILE\e[0m specfied for \e[35m--vsphere-cpi-config-file\e[0m does not exist.\e[0m"
+    PARAM_CHECK_PASS=false  
+fi
+
+if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && "$VSPHERE_CPI_LABELS" != "region=k8s-region, zone=k8s-zone" ]]; then
+    echo -e "\e[33mWARNING:\e[0m \e[35m--vsphere-cpi-labels\e[0m will be ignored when \e[35m--vsphere-cpi-config-file\e[0m is used.\e[0m"
+    PARAM_CHECK_WARN=true
+fi
+
+if [[ ! $VSPHERE_CPI_LABELS =~ ^([-a-zA-Z0-9_.]+=([-a-zA-Z0-9_.]+))+(,[-a-zA-Z0-9_.]+=([-a-zA-Z0-9_.]+))*$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-labels\e[0m must be in the format \e[35mkey=value,key2=value2\e[0m (alphanumeric, dot, underscore, dash)"
+    PARAM_CHECK_PASS=false
+fi
+
 if [ $PARAM_CHECK_PASS == false ]; then
     exit 1
 fi
+
+if [ $PARAM_CHECK_WARN == true ]; then
+    sleep 10
+fi
+
+# Install VMware vSphere CSI Driver
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # Check sudo & keep sudo running
 
@@ -354,29 +379,15 @@ EOF
     fi
 done
 
-# Install VMWare CPI driver Helm chart
+# Install VMware vSphere CPI Driver
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # todo: Check if labels are already set on VM
-# todo: Add validation for labels parameter via regex
 
 if [[ $INSTALL_VSPHERE_CPI_DRIVER == true ]]; then 
   echo -e "\033[36mInstall VMWare CPI driver\033[0m"
 
-  export VSPHERE_CPI_LABELS_YAML=""
-
-  IFS=',' read -ra label_pairs <<< "$VSPHERE_CPI_LABELS"
-  for pair in "${label_pairs[@]}"; do
-    key=$(echo "$pair" | cut -d'=' -f1 | xargs)
-    value=$(echo "$pair" | cut -d'=' -f2- | xargs)
-    echo -e "\nChecking tag category: \033[35m$value\033[0m"    
-    tag_details=$(govc tags.category.info "$value" 2>&1)
-    if [ $? -ne 0 ]; then
-      echo -e "\033[33mNot found. Ignoring\033[0m"
-    else
-      echo -e "\033[32mFound!\033[0m"
-      [[ -n "$key" && -n "$value" ]] && VSPHERE_CPI_LABELS_YAML="$VSPHERE_CPI_LABELS_YAML \"$key\": \"$value\","
-    fi    
-  done
+  # Configure kube-controller-manager for external cloud provider
 
   export KUBE_CONTROLLER_MANAGER_CONF="/etc/kubernetes/manifests/kube-controller-manager.yaml"
 
@@ -387,9 +398,12 @@ if [[ $INSTALL_VSPHERE_CPI_DRIVER == true ]]; then
     echo -e "\n\033[36mkube-controller-manager already configured for external cloud provider\033[0m"
   fi
 
-  echo -e "\n\033[36mCreate vSphere cloud configmap and secret\033[0m"
+  # Create vSphere cloud configmap and secret  
 
-  export VSPHERE_CONF="
+  if [[ -z "$VSPHERE_CPI_CONFIG_FILE" ]]; then
+    echo -e "\n\033[36mGenerate vSphere config\033[0m"
+
+    export VSPHERE_CONF="
 global:
   port: 443  
   insecureFlag: $VCENTER_INSECURE  
@@ -402,11 +416,33 @@ vcenter:
       - $VCENTER_DATACENTER_NAME
 labels: {}
 "
-  VSPHERE_CONF=$(printf "%s\n" "$VSPHERE_CONF" | yq -y ".labels += { $VSPHERE_CPI_LABELS_YAML }")
+    export VSPHERE_CPI_LABELS_YAML=""
+  
+    IFS=',' read -ra label_pairs <<< "$VSPHERE_CPI_LABELS"
+    for pair in "${label_pairs[@]}"; do
+      key=$(echo "$pair" | cut -d'=' -f1 | xargs)
+      value=$(echo "$pair" | cut -d'=' -f2- | xargs)
+      echo -e "\nChecking tag category: \033[35m$value\033[0m"    
+      tag_details=$(govc tags.category.info "$value" 2>&1)
+      if [ $? -ne 0 ]; then
+        echo -e "\033[33mNot found. Ignoring\033[0m"
+      else
+        echo -e "\033[32mFound!\033[0m"
+        [[ -n "$key" && -n "$value" ]] && VSPHERE_CPI_LABELS_YAML="$VSPHERE_CPI_LABELS_YAML \"$key\": \"$value\","
+      fi    
+    done
+  
+    VSPHERE_CONF=$(printf "%s\n" "$VSPHERE_CONF" | yq -y ".labels += { $VSPHERE_CPI_LABELS_YAML }")
+  else
+    echo -e "\nUsing provided vSphere CPI config file: \033[35m$VSPHERE_CPI_CONFIG_FILE\033[0m"
+    VSPHERE_CONF=$(cat $VSPHERE_CPI_CONFIG_FILE)
+  fi
+
+  echo -e "\n\033[36mCreate vSphere cloud configmap and secret\033[0m"
 
   export VMWARE_CPI_NAMESPACE="vmware-system-cpi"
   export SECRET_FILE="vsphere-cloud-secret.yaml"
-  export CONFIGMAP_FILE="vsphere-cloud-config.yaml"    
+  export CONFIGMAP_FILE="vsphere-cloud-config.yaml"
 
   cat <<EOF > $SECRET_FILE
 apiVersion: v1
@@ -435,6 +471,9 @@ EOF
   kubectl apply -f $CONFIGMAP_FILE && rm $CONFIGMAP_FILE
   kubectl apply -f $SECRET_FILE && rm $SECRET_FILE
 
+  # Install CPI driver Helm chart
+  # https://cloud-provider-vsphere.sigs.k8s.io/tutorials/kubernetes-on-vsphere-with-kubeadm
+
   echo -e "\n\033[36mInstall VMWare CPI driver Helm chart\033[0m"
 
   helm repo add vsphere-cpi https://kubernetes.github.io/cloud-provider-vsphere
@@ -442,8 +481,13 @@ EOF
   helm upgrade --install vsphere-cpi vsphere-cpi/vsphere-cpi --namespace $VMWARE_CPI_NAMESPACE --wait
 
   echo -e "\n\033[36mTaint all nodes\033[0m"
-  # Nodes need to be tainted in order for the CPI driver to complete the node registration. Taints are removed by the CPI driver once the nodes are registered.
+
+  # Taint all nodes
+
+  # Nodes need to be tainted in order for the CPI driver to complete the node registration. 
+  # Taints are removed by the CPI driver once the nodes are registered.
+  
   kubectl taint nodes --all node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule --overwrite
 fi
 
-echo -e "\n\033[32mInstallation Complete!\n\033[0m"  
+echo -e "\n\033[32mInstallation Complete!\n\033[0m"
