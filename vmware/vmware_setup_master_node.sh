@@ -5,7 +5,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.6.1\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.7.0\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m VMWare vSphere CSI and CPI Setup\e[0m'
 echo -e '\e[35m                                 \e[36m Master Node Edition\e[0m\n'
 
@@ -22,7 +22,8 @@ export VCENTER_DATASTORES_DELIMITER=","
 export VSPHERE_CSI_DRIVER_VERSION="latest"
 export STORAGE_CLASS_NAME_PREFIX="vsphere-csi"
 export INSTALL_VSPHERE_CPI_DRIVER=false
-export VSPHERE_CPI_LABELS="region=k8s-region,zone=k8s-zone"
+export VSPHERE_CPI_TAG_CATEGORY_REGION="k8s-region"
+export VSPHERE_CPI_TAG_CATEGORY_ZONE="k8s-zone"
 export VSPHERE_CPI_CONFIG_FILE=""
 
 # ------------------------------
@@ -42,8 +43,9 @@ while [[ $# -gt 0 ]]; do
         --vcenter-datastores-delimiter) VCENTER_DATASTORES_DELIMITER=($2); shift; shift;;
         --vsphere-csi-driver-version) VSPHERE_CSI_DRIVER_VERSION="$2"; shift; shift;;
         --storage-class-name-prefix) STORAGE_CLASS_NAME_PREFIX="$2"; shift; shift;;
-        --install-vsphere-cpi-driver) INSTALL_VSPHERE_CPI_DRIVER="$2"; shift; shift;;
-        --vsphere-cpi-labels) VSPHERE_CPI_LABELS="$2"; shift; shift;;
+        --install-vsphere-cpi-driver) INSTALL_VSPHERE_CPI_DRIVER="$2"; shift; shift;;        
+        --vsphere-cpi-tag-category-region) VSPHERE_CPI_TAG_CATEGORY_REGION="$2"; shift; shift;;
+        --vsphere-cpi-tag-category-zone) VSPHERE_CPI_TAG_CATEGORY_ZONE="$2"; shift; shift;;
         --vsphere-cpi-config-file) VSPHERE_CPI_CONFIG_FILE="$2"; shift; shift;;
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
@@ -95,13 +97,18 @@ if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && ! -f "$VSPHERE_CPI_CONFIG_FILE" ]]; the
     PARAM_CHECK_PASS=false  
 fi
 
-if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && "$VSPHERE_CPI_LABELS" != "region=k8s-region, zone=k8s-zone" ]]; then
-    echo -e "\e[33mWARNING:\e[0m \e[35m--vsphere-cpi-labels\e[0m will be ignored when \e[35m--vsphere-cpi-config-file\e[0m is used.\e[0m"
-    PARAM_CHECK_WARN=true
+if [[ "$INSTALL_VSPHERE_CPI_DRIVER" != true && "$INSTALL_VSPHERE_CPI_DRIVER" != false ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--install-vsphere-cpi-driver\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mfalse\e[0m)"
+    PARAM_CHECK_PASS=false
 fi
 
-if [[ ! $VSPHERE_CPI_LABELS =~ ^([-a-zA-Z0-9_.]+=([-a-zA-Z0-9_.]+))+(,[-a-zA-Z0-9_.]+=([-a-zA-Z0-9_.]+))*$ ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-labels\e[0m must be in the format \e[35mkey=value,key2=value2\e[0m (alphanumeric, dot, underscore, dash)"
+if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_REGION" && "$VSPHERE_CPI_TAG_CATEGORY_REGION" == *[!a-zA-Z0-9_-]* ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-tag-category-region\e[0m can only contain letters, numbers, dashes and underscores. (Default: \e[35mk8s-region\e[0m)"
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_ZONE" && "$VSPHERE_CPI_TAG_CATEGORY_ZONE" == *[!a-zA-Z0-9_-]* ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-tag-category-zone\e[0m can only contain letters, numbers, dashes and underscores. (Default: \e[35mk8s-zone\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 
@@ -173,33 +180,34 @@ export GOVC_INSECURE=$VCENTER_INSECURE
 echo -e "\n\033[36mCheck vCenter access\033[0m"
 echo -e "Username: \033[35m$VCENTER_USERNAME\033[0m"
 
-echo "Checking authentication to vCenter ..."
+echo -e "\nChecking authentication to vCenter ..."
 
-user_credential_check=$(govc about 2>&1)
+user_credential_check=$(govc session.login 2>&1)
 
-if [ $? -ne 0 ]; then    
-    if echo "$user_credential_check" | grep -q "incorrect user name or password"; then
-        echo -e "\033[31mERROR: The provided vcenter credentials are incorrect!\033[0m"
-        echo -e "\033[31m       Please check the username and password then try again.\033[0m"                
+if [ $? -ne 0 ]; then
+    if [[ "$user_credential_check" =~ (incorrect user name or password)|(Invalid credentials) ]]; then
+        echo -e "\n\033[31mError:\033[0m The provided vcenter credentials are incorrect!"
+        echo -e "       Please check the username and password then try again."
     else
-        echo -e "\033[31mERROR: An error occured while checking the credentials!\033[0m"
-        echo -e "\033[31m       $user_credential_check\033[0m"
+        echo -e "\n\033[31mError:\033[0m An error occured while checking the credentials!"
+        echo -e "       $user_credential_check"
     fi
     exit 1
 else
     echo -e "\033[32mAuthentication successful!\033[0m"    
 fi
 
-echo "Checking group membership ..."
+echo -e "\nChecking group membership ..."
 
-user_details=$(govc sso.user.id $VCENTER_USERNAME 2>&1)
+export user_details=$(govc sso.user.id $VCENTER_USERNAME 2>&1)
+export required_group="Administrators"
 
 if [[ $? -eq 0 ]]; then
     groups=$(echo "$user_details" | grep -oP 'groups=\K[^ ]+')    
     IFS=',' read -ra group_array <<< "$groups"
     isadmin=false
     for group in "${group_array[@]}"; do        
-        if [[ $group == "Administrators" ]]; then
+        if [[ $group == $required_group ]]; then
             isadmin=true
             break
         fi
@@ -207,13 +215,13 @@ if [[ $? -eq 0 ]]; then
     if [[ $isadmin == "true" ]]; then
         echo -e "\033[32mThe user is in the Administrators group!\033[0m"
     else
-        echo -e "\033[33mWARNING: The user $VCENTER_USERNAME is not in the Administrators group!\033[0m"
-        echo -e "\033[33m         Make sure that the user account has the required permissions / roles.\033[0m"
+        echo -e "\n\033[33mWarning:\033[0m The user \033[35m$VCENTER_USERNAME\033[0m is not in the \033[35m$required_group\033[0m group!"
+        echo -e "         Make sure that the user account has the required permissions / roles."
     fi
 else
-    echo -e "\033[33mWARNING: Could not confirm the group membership for user $VCENTER_USERNAME!\033[0m"
-    echo -e "\033[33m         Make sure that the user account has the required permissions / roles.\033[0m"
-    echo -e "\033[33m         $user_details\033[0m"
+    echo -e "\n\033[33mWarning:\033[0m Could not confirm the group membership for user \033[35m$VCENTER_USERNAME\033[0m!"
+    echo -e "         Make sure that the user account has the required permissions / roles."
+    echo -e "         $user_details"
 fi
 
 echo -e "\n\033[36mUpdate VM settings in vSphere\033[0m"
@@ -231,21 +239,31 @@ for ip in $IP_ADDRESSES; do
 done
 
 if [[ -z "$myself" ]]; then
-    echo -e "\033[33mWARNING: I could not find myself in vSphere. Makes sure that I am actually running in vSphere and that the GOVC environment variables are correct.\033[0m" 
-    echo -e "\033[33mThis will likely result in the CSI driver not functioning correctly!\033[0m"
+    echo -e "\n\033[31mError:\e[0m I could not find myself in vSphere. Makes sure that I am actually running in vSphere and that the GOVC environment variables are correct." 
+    echo -e "       This will likely result in the CSI driver not functioning correctly!"
+    exit 1
+fi
+
+declare -A myTags
+
+while IFS= read -r tag; do
+    tagCategory=$(govc tags.info -json "$tag" | jq -r '.[0].category_id')
+    echo -e "Found tag: \033[35m$tagCategory\033[0m = \033[34m$tag\033[0m"
+    myTags["$tagCategory"]="$tag"
+done < <(govc tags.attached.ls -r "$myself")
+
+echo -e "\nConfiguring \033[35mdisk.EnableUUID\033[0m setting"
+enableUUID=$(govc vm.info -vm.ipath "$myself" -json  | jq -r '.virtualMachines[].config.extraConfig[] | select(.key=="disk.EnableUUID").value')
+
+if [ "$enableUUID" = "TRUE" ]; then
+    echo -e "\033[32mSetting is already enabled.\033[0m"
 else
-    echo "Configuring disk.EnableUUID setting"
-    enableUUID=$(govc vm.info -vm.ipath "$myself" -json  | jq -r '.virtualMachines[].config.extraConfig[] | select(.key=="disk.EnableUUID").value')
-    if [ "$enableUUID" = "TRUE" ]; then
-        echo "disk.EnableUUID is already enabled"
+    govc vm.change -vm "$myself" -e="disk.EnableUUID=TRUE"
+    if [[ $? -ne 0 ]]; then
+        echo -e "\033[31mError:\033[0m Failed to configure disk.EnableUUID setting."
+        echo -e "       Please set this manually via the vSphere client."
     else
-        govc vm.change -vm "$myself" -e="disk.EnableUUID=TRUE"
-        if [[ $? -ne 0 ]]; then
-            echo -e "\033[31mError: Failed to configure disk.EnableUUID setting.\033[0m"
-            echo -e "\033[31m       Please set this manually via the vSphere client.\033[0m"
-        else
-            echo -e "\033[32mSuccessfully configured disk.EnableUUID setting.\033[0m"
-        fi
+        echo -e "\033[32mSuccessfully configured disk.EnableUUID setting.\033[0m"
     fi
 fi
 
@@ -382,7 +400,22 @@ done
 # Install VMware vSphere CPI Driver
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
-# todo: Check if labels are already set on VM
+check_tag() {
+  value="$1"
+  echo -e "\nChecking tag category: \033[35m$value\033[0m"  
+  tag_details=$(govc tags.category.info "$value" 2>&1)
+  if [ $? -ne 0 ]; then
+    echo -e "\033[33mNot found. Ignoring\033[0m"
+    return 1
+  else
+    echo -e "\033[32mFound!\033[0m"           
+    if [[ ! -v myTags[$value] ]]; then            
+        echo -e "\n\e[33mWarning:\e[0m This virtual machine does not have a \e[35m$value\e[0m tag."
+        echo -e "         The CPI driver will not remove the taint until it has been added."
+    fi
+  fi
+  return 0
+}
 
 if [[ $INSTALL_VSPHERE_CPI_DRIVER == true ]]; then 
   echo -e "\033[36mInstall VMWare CPI driver\033[0m"
@@ -408,7 +441,7 @@ global:
   port: 443  
   insecureFlag: $VCENTER_INSECURE  
   secretName: vsphere-cloud-secret
-  secretNamespace: kube-system  
+  secretNamespace: kube-system
 vcenter:
   $VCENTER_ADDR:
     server: $VCENTER_ADDR
@@ -416,23 +449,20 @@ vcenter:
       - $VCENTER_DATACENTER_NAME
 labels: {}
 "
-    export VSPHERE_CPI_LABELS_YAML=""
-  
-    IFS=',' read -ra label_pairs <<< "$VSPHERE_CPI_LABELS"
-    for pair in "${label_pairs[@]}"; do
-      key=$(echo "$pair" | cut -d'=' -f1 | xargs)
-      value=$(echo "$pair" | cut -d'=' -f2- | xargs)
-      echo -e "\nChecking tag category: \033[35m$value\033[0m"    
-      tag_details=$(govc tags.category.info "$value" 2>&1)
-      if [ $? -ne 0 ]; then
-        echo -e "\033[33mNot found. Ignoring\033[0m"
-      else
-        echo -e "\033[32mFound!\033[0m"
-        [[ -n "$key" && -n "$value" ]] && VSPHERE_CPI_LABELS_YAML="$VSPHERE_CPI_LABELS_YAML \"$key\": \"$value\","
-      fi    
-    done
-  
-    VSPHERE_CONF=$(printf "%s\n" "$VSPHERE_CONF" | yq -y ".labels += { $VSPHERE_CPI_LABELS_YAML }")
+    
+    if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_REGION" ]]; then
+      check_tag "$VSPHERE_CPI_TAG_CATEGORY_REGION"
+      if [ $? -eq 0 ]; then
+        VSPHERE_CONF=$(printf "%s\n" "$VSPHERE_CONF" | yq -y ".labels += { \"region\": \"$VSPHERE_CPI_TAG_CATEGORY_REGION\" }")
+      fi
+    fi
+
+    if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_ZONE" ]]; then
+      check_tag "$VSPHERE_CPI_TAG_CATEGORY_ZONE"
+      if [ $? -eq 0 ]; then
+        VSPHERE_CONF=$(printf "%s\n" "$VSPHERE_CONF" | yq -y ".labels += { \"zone\": \"$VSPHERE_CPI_TAG_CATEGORY_ZONE\" }")
+      fi
+    fi
   else
     echo -e "\nUsing provided vSphere CPI config file: \033[35m$VSPHERE_CPI_CONFIG_FILE\033[0m"
     VSPHERE_CONF=$(cat $VSPHERE_CPI_CONFIG_FILE)
@@ -482,11 +512,12 @@ EOF
 
   echo -e "\n\033[36mTaint all nodes\033[0m"
 
-  # Taint all nodes
+  # Restart CPI pods and taint all nodes
 
   # Nodes need to be tainted in order for the CPI driver to complete the node registration. 
   # Taints are removed by the CPI driver once the nodes are registered.
-  
+
+  kubectl rollout restart daemonset/vsphere-cpi -n $VMWARE_CPI_NAMESPACE  
   kubectl taint nodes --all node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule --overwrite
 fi
 
