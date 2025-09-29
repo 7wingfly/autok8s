@@ -24,6 +24,8 @@ export STORAGE_CLASS_NAME_PREFIX="vsphere-csi"
 export INSTALL_VSPHERE_CPI_DRIVER=false
 export VSPHERE_CPI_TAG_CATEGORY_REGION="k8s-region"
 export VSPHERE_CPI_TAG_CATEGORY_ZONE="k8s-zone"
+export VSPHERE_CPI_TAG_REGION=""
+export VSPHERE_CPI_TAG_ZONE=""
 export VSPHERE_CPI_CONFIG_FILE=""
 
 # ------------------------------
@@ -46,6 +48,8 @@ while [[ $# -gt 0 ]]; do
         --install-vsphere-cpi-driver) INSTALL_VSPHERE_CPI_DRIVER="$2"; shift; shift;;        
         --vsphere-cpi-tag-category-region) VSPHERE_CPI_TAG_CATEGORY_REGION="$2"; shift; shift;;
         --vsphere-cpi-tag-category-zone) VSPHERE_CPI_TAG_CATEGORY_ZONE="$2"; shift; shift;;
+        --vsphere-cpi-tag-region) VSPHERE_CPI_TAG_REGION="$2"; shift; shift;;
+        --vsphere-cpi-tag-zone) VSPHERE_CPI_TAG_ZONE="$2"; shift; shift;;
         --vsphere-cpi-config-file) VSPHERE_CPI_CONFIG_FILE="$2"; shift; shift;;
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
@@ -57,8 +61,13 @@ done
 export PARAM_CHECK_PASS=true
 export PARAM_CHECK_WARN=false
 
+if [[ ! -f "/etc/kubernetes/admin.conf" ]]; then
+    echo -e "\e[31mError:\e[0m This script must be run on a Kubernetes master node. Please install Kubernetes first."
+    PARAM_CHECK_PASS=false
+fi
+
 if [[ ! "$VCENTER_INSECURE" =~ ^(true|false)$ ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-insecure\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+    echo -e "\e[31mError:\e[0m \e[35m--vcenter-insecure\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mfalse\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 
@@ -97,7 +106,7 @@ if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && ! -f "$VSPHERE_CPI_CONFIG_FILE" ]]; the
     PARAM_CHECK_PASS=false  
 fi
 
-if [[ "$INSTALL_VSPHERE_CPI_DRIVER" != true && "$INSTALL_VSPHERE_CPI_DRIVER" != false ]]; then
+if [[ "$INSTALL_VSPHERE_CPI_DRIVER" =~ ^(true|false)$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--install-vsphere-cpi-driver\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mfalse\e[0m)"
     PARAM_CHECK_PASS=false
 fi
@@ -213,7 +222,7 @@ if [[ $? -eq 0 ]]; then
         fi
     done
     if [[ $isadmin == "true" ]]; then
-        echo -e "\033[32mThe user is in the Administrators group!\033[0m"
+        echo -e "\033[32mThe user is in the $required_group group!\033[0m"
     else
         echo -e "\n\033[33mWarning:\033[0m The user \033[35m$VCENTER_USERNAME\033[0m is not in the \033[35m$required_group\033[0m group!"
         echo -e "         Make sure that the user account has the required permissions / roles."
@@ -400,20 +409,91 @@ done
 # Install VMware vSphere CPI Driver
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
-check_tag() {
-  value="$1"
-  echo -e "\nChecking tag category: \033[35m$value\033[0m"  
-  tag_details=$(govc tags.category.info "$value" 2>&1)
-  if [ $? -ne 0 ]; then
-    echo -e "\033[33mNot found. Ignoring\033[0m"
-    return 1
+function check_tag() {
+  category=$1
+  tag=$2
+
+  currentTag="${myTags[$category]}"
+
+  if [[ ! -z "$tag" ]]; then
+    tagmsg="and tag \033[34m$tag\033[0m"
   else
-    echo -e "\033[32mFound!\033[0m"           
-    if [[ ! -v myTags[$value] ]]; then            
-        echo -e "\n\e[33mWarning:\e[0m This virtual machine does not have a \e[35m$value\e[0m tag."
-        echo -e "         The CPI driver will not remove the taint until it has been added."
+    tagmsg=""
+  fi
+  echo -e "\nChecking tag category \033[35m$category\033[0m $tagmsg"
+
+  if [[ ! -z "$currentTag" && "$currentTag" == "$tag" ]]; then
+    echo -e "\033[32mTag already set!\033[0m"
+    return 0
+  fi
+
+  if [[ -z "$tag" && -v myTags[$category] ]]; then
+    echo -e "\033[32mFound tag \033[34m$currentTag\033[0m!\033[0m"
+    return 0
+  fi
+
+  cat_test=$(govc tags.category.info "$category" >/dev/null 2>&1; echo $?)  
+
+  function show_warning() {
+    if [[ ! -v myTags[$category] ]]; then
+      echo -e "\n\e[33mWarning:\e[0m This virtual machine does not have a \e[35m$category\e[0m tag."
+      echo -e "         The CPI driver will not remove the taint until one has been added."  
+    else
+      echo -e "\n\e[33mWarning:\e[0m This virtual machine has a \e[35m$category\e[0m tag but it is not the request one."      
+    fi    
+  }
+
+  if [[ $cat_test != 0 ]]; then
+    echo -e "\033[33mTag category does not exist in vSphere. Ignoring.\033[0m"
+    return 1
+  fi
+
+  if [[ -z "$tag" ]]; then
+    echo -e "\033[32mTag category found!\033[0m"
+    show_warning
+    return 0
+  fi
+
+  tag_test=$(govc tags.info "$tag" >/dev/null 2>&1; echo $?)
+  
+  if [[ $tag_test != 0 ]]; then
+    echo -e "\033[33mTag category found but tag does not exist in vSphere!\033[0m"
+    show_warning
+    return 0
+  fi
+
+  if [[ $(govc tags.ls | grep $tag | awk '{print $2}') != $category ]]; then
+    echo -e "\033[33mThe tag does not belong to the specified category!\033[0m"
+    show_warning
+    return 0
+  fi
+
+  if [[ ! -z "$currentTag" && "$currentTag" != "$tag" ]]; then
+    echo -e "\nRemoving tag \033[34m$currentTag\033[0m"    
+    tag_remove_result=$(govc tags.detach "$currentTag" "$myself" 2>&1)
+    if [ $? -ne 0 ]; then
+      echo -e "\n\033[31mError:\033[0m Failed to remove tag \033[34m$currentTag\033[0m from myself."
+      echo -e "       $tag_remove_result"
+      show_warning
+      return 0
+    else
+      echo -e "\033[32mSuccess!\033[0m"
     fi
   fi
+
+  echo -e "\nAdding tag \033[34m$tag\033[0m"
+  
+  tag_add_result=$(govc tags.attach "$tag" "$myself" 2>&1)
+  
+  if [ $? -ne 0 ]; then
+    echo -e "\n\033[31mError:\033[0m Failed to add tag \033[34m$tag\033[0m to myself."
+    echo -e "       $tag_add_result"
+    show_warning
+    return 0
+  else
+    echo -e "\033[32mSuccess!\033[0m"
+  fi
+
   return 0
 }
 
@@ -451,14 +531,14 @@ labels: {}
 "
     
     if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_REGION" ]]; then
-      check_tag "$VSPHERE_CPI_TAG_CATEGORY_REGION"
+      check_tag "$VSPHERE_CPI_TAG_CATEGORY_REGION" "$VSPHERE_CPI_TAG_REGION"
       if [ $? -eq 0 ]; then
         VSPHERE_CONF=$(printf "%s\n" "$VSPHERE_CONF" | yq -y ".labels += { \"region\": \"$VSPHERE_CPI_TAG_CATEGORY_REGION\" }")
       fi
     fi
 
     if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_ZONE" ]]; then
-      check_tag "$VSPHERE_CPI_TAG_CATEGORY_ZONE"
+      check_tag "$VSPHERE_CPI_TAG_CATEGORY_ZONE" "$VSPHERE_CPI_TAG_ZONE"
       if [ $? -eq 0 ]; then
         VSPHERE_CONF=$(printf "%s\n" "$VSPHERE_CONF" | yq -y ".labels += { \"zone\": \"$VSPHERE_CPI_TAG_CATEGORY_ZONE\" }")
       fi
@@ -517,7 +597,7 @@ EOF
   # Nodes need to be tainted in order for the CPI driver to complete the node registration. 
   # Taints are removed by the CPI driver once the nodes are registered.
 
-  kubectl rollout restart daemonset/vsphere-cpi -n $VMWARE_CPI_NAMESPACE  
+  kubectl rollout restart daemonset/vsphere-cpi -n $VMWARE_CPI_NAMESPACE
   kubectl taint nodes --all node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule --overwrite
 fi
 
