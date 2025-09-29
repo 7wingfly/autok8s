@@ -106,7 +106,7 @@ if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && ! -f "$VSPHERE_CPI_CONFIG_FILE" ]]; the
     PARAM_CHECK_PASS=false  
 fi
 
-if [[ "$INSTALL_VSPHERE_CPI_DRIVER" =~ ^(true|false)$ ]]; then
+if [[ ! "$INSTALL_VSPHERE_CPI_DRIVER" =~ ^(true|false)$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--install-vsphere-cpi-driver\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mfalse\e[0m)"
     PARAM_CHECK_PASS=false
 fi
