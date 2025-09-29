@@ -131,8 +131,8 @@ export APT_LOCK="-o DPkg::Lock::Timeout=600"
 
 echo -e "\n\033[36mInstall jq & yq\033[0m"
 
-# apt-get update -qq $APT_LOCK
-# apt-get install jq yq -qqy $APT_LOCK
+apt-get update -qq $APT_LOCK
+apt-get install jq yq -qqy $APT_LOCK
 
 echo -e "\033[32mDone.\033[0m"
 
