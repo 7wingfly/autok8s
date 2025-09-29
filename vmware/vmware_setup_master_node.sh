@@ -77,7 +77,7 @@ if [[ -z "$VCENTER_ADDR" ]]; then
 fi
 
 if [[ -z "$VCENTER_USERNAME" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-username\e[0m is required! (Default: 'administrator@vsphere.local')"
+    echo -e "\e[31mError:\e[0m \e[35m--vcenter-username\e[0m is required! (Default: \e[35madministrator@vsphere.local\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 
@@ -87,17 +87,17 @@ if [[ -z "$VCENTER_PASSWORD" ]]; then
 fi
 
 if [[ -z "$VCENTER_DATACENTER_NAME" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-datacenter\e[0m is required! (Default: 'Datacenter')"
+    echo -e "\e[31mError:\e[0m \e[35m--vcenter-datacenter\e[0m is required! (Default: \e[35mDatacenter\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 
 if [[ -z "$VSPHERE_CSI_DRIVER_VERSION" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vsphere-csi-driver-version\e[0m is required! (Default: latest)"
+    echo -e "\e[31mError:\e[0m \e[35m--vsphere-csi-driver-version\e[0m is required! (Default: \e[35mlatest\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 
 if [[ -z "$STORAGE_CLASS_NAME_PREFIX" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--storage-class-name-prefix\e[0m is required! (Default: vsphere-csi)"
+    echo -e "\e[31mError:\e[0m \e[35m--storage-class-name-prefix\e[0m is required! (Default: \e[35mvsphere-csi\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 

@@ -65,7 +65,7 @@ if [[ -z "$VCENTER_ADDR" ]]; then
 fi
 
 if [[ -z "$VCENTER_USERNAME" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-username\e[0m is required! (Default: 'administrator@vsphere.local')"
+    echo -e "\e[31mError:\e[0m \e[35m--vcenter-username\e[0m is required! (Default: \e[35madministrator@vsphere.local\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 
