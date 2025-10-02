@@ -13,14 +13,14 @@ echo -e '\e[35m                                 \e[36m Worker Node Edition\e[0m\
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 export VCENTER_ADDR=""
-export VCENTER_PASSWORD=""
 export VCENTER_USERNAME="administrator@vsphere.local"
 export VCENTER_INSECURE=false
-export MANAGE_TAGS_FOR_VSPHERE_CPI=false
+export MANAGE_TAGS_FOR_VSPHERE_CPI=true
 export VSPHERE_CPI_TAG_CATEGORY_REGION="k8s-region"
 export VSPHERE_CPI_TAG_CATEGORY_ZONE="k8s-zone"
 export VSPHERE_CPI_TAG_REGION=""
 export VSPHERE_CPI_TAG_ZONE=""
+export VSPHERE_CPI_CREATE_TAGS=true
 
 # ------------------------------
 # Parameters
@@ -39,6 +39,7 @@ while [[ $# -gt 0 ]]; do
         --vsphere-cpi-tag-category-zone) VSPHERE_CPI_TAG_CATEGORY_ZONE="$2"; shift; shift;;
         --vsphere-cpi-tag-region) VSPHERE_CPI_TAG_REGION="$2"; shift; shift;;
         --vsphere-cpi-tag-zone) VSPHERE_CPI_TAG_ZONE="$2"; shift; shift;;
+        --vsphere-cpi-create-tags) VSPHERE_CPI_CREATE_TAGS="$2"; shift; shift;;
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
 done
@@ -65,7 +66,7 @@ if [[ -z "$VCENTER_ADDR" ]]; then
 fi
 
 if [[ -z "$VCENTER_USERNAME" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-username\e[0m is required! (Default: \e[35madministrator@vsphere.local\e[0m)"
+    echo -e "\e[31mError:\e[0m \e[35m--vcenter-username\e[0m is required! (Default: 'administrator@vsphere.local')"
     PARAM_CHECK_PASS=false
 fi
 
@@ -86,6 +87,11 @@ fi
 
 if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_ZONE" && "$VSPHERE_CPI_TAG_CATEGORY_ZONE" == *[!a-zA-Z0-9_-]* ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-tag-category-zone\e[0m can only contain letters, numbers, dashes and underscores. (Default: \e[35mk8s-zone\e[0m)"
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ ! "$VSPHERE_CPI_CREATE_TAGS" =~ ^(true|false)$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-create-tags\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mtrue\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 
@@ -209,8 +215,9 @@ IP_ADDRESSES=$(hostname -I)
 
 for ip in $IP_ADDRESSES; do
     myself=$(govc find / -type m -guest.ipAddress $ip)
+    vm_id=$(govc vm.info -json "$myself" | jq -r ".virtualMachines[0].self.value" | tr -d '"')
     if [[ ! -z "$myself" ]]; then
-        echo -e "Found myself at \033[35m$myself\033[0m"
+        echo -e "Found myself at \033[35m$myself\033[0m (id: \033[35m$vm_id\033[0m) with IP address \033[35m$ip\033[0m"
         break
     fi
 done
@@ -223,11 +230,19 @@ fi
 
 declare -A myTags
 
-while IFS= read -r tag; do
-    tagCategory=$(govc tags.info -json "$tag" | jq -r '.[0].category_id')
-    echo -e "Found tag: \033[35m$tagCategory\033[0m = \033[34m$tag\033[0m"
-    myTags["$tagCategory"]="$tag"
-done < <(govc tags.attached.ls -r "$myself")
+tags_json=$(govc tags.ls -json)
+tag_count=$(echo "$tags_json" | jq '. | length')
+
+for ((i=0; i<tag_count; i++)); do
+  tag_id=$(echo "$tags_json" | jq -r ".[$i].id")
+  tag_name=$(echo "$tags_json" | jq -r ".[$i].name")
+  tag_category=$(echo "$tags_json" | jq -r ".[$i].category_id")  
+  vm_tag_index=$(govc tags.attached.ls -json "$tag_id" | jq ". | index(\"VirtualMachine:$vm_id\")")
+  if [[ $vm_tag_index != "null" ]]; then
+    echo -e "Found tag: \033[35m$tag_category\033[0m = \033[34m$tag_name\033[0m"
+    myTags["$tag_category"]="$tag_name"
+  fi
+done
 
 echo -e "\nConfiguring \033[35mdisk.EnableUUID\033[0m setting"
 enableUUID=$(govc vm.info -vm.ipath "$myself" -json  | jq -r '.virtualMachines[].config.extraConfig[] | select(.key=="disk.EnableUUID").value')
@@ -282,8 +297,20 @@ function check_tag() {
   }
 
   if [[ $cat_test != 0 ]]; then
-    echo -e "\033[33mTag category does not exist in vSphere. Ignoring.\033[0m"
-    return 1
+    if [[ "$VSPHERE_CPI_CREATE_TAGS" == true && ! -z "$tag" ]]; then
+      echo -e "\nCreating tag category \033[35m$category\033[0m"
+      cat_create_result=$(govc tags.category.create -d "Kubernetes tag category created by AutoK8s" "$category" 2>&1)
+      if [[ $? -ne 0 ]]; then
+        echo -e "\033[31mError:\033[0m Failed to create tag category \033[35m$category\033[0m."
+        echo -e "       $cat_create_result"
+        show_warning
+        return 0
+      fi     
+      echo -e "\033[32mSuccess!\033[0m"    
+    else    
+      echo -e "\033[33mTag category does not exist in vSphere. Ignoring.\033[0m"
+      return 1
+    fi
   fi
 
   if [[ -z "$tag" ]]; then
@@ -291,19 +318,30 @@ function check_tag() {
     show_warning
     return 0
   fi
-
-  tag_test=$(govc tags.info "$tag" >/dev/null 2>&1; echo $?)
   
-  if [[ $tag_test != 0 ]]; then
-    echo -e "\033[33mTag category found but tag does not exist in vSphere!\033[0m"
-    show_warning
-    return 0
-  fi
-
-  if [[ $(govc tags.ls | grep $tag | awk '{print $2}') != $category ]]; then
-    echo -e "\033[33mThe tag does not belong to the specified category!\033[0m"
-    show_warning
-    return 0
+  tag_exists=$([[ $(govc tags.info "$tag" | grep Category | awk '{print $2}') =~ "$category" ]] && a=true || a=false)
+  
+  if [[ $tag_exists == false ]]; then
+    if [[ "$VSPHERE_CPI_CREATE_TAGS" == true ]]; then
+      echo -e "\nCreating tag \033[34m$tag\033[0m"
+      tag_create_result=$(govc tags.create -d "Kubernetes tag created by AutoK8s" -c "$category" "$tag" 2>&1)
+      if [[ $? -ne 0 ]]; then
+        echo -e "\033[31mError:\033[0m Failed to create tag \033[34m$tag\033[0m in category \033[35m$category\033[0m."
+        echo -e "       $tag_create_result"
+        show_warning
+        return 0
+      fi
+      echo -e "\033[32mSuccess!\033[0m"    
+    else
+      echo -e "\033[33mTag category found but tag does not exist in vSphere!\033[0m"
+      show_warning
+      return 0
+    fi
+    if [[ $(govc tags.ls | grep $tag | awk '{print $2}') != $category ]]; then 
+      echo -e "\033[33mThe tag does not belong to the specified category!\033[0m"
+      show_warning
+      return 0
+    fi
   fi
 
   if [[ ! -z "$currentTag" && "$currentTag" != "$tag" ]]; then
@@ -321,7 +359,7 @@ function check_tag() {
 
   echo -e "\nAdding tag \033[34m$tag\033[0m"
   
-  tag_add_result=$(govc tags.attach "$tag" "$myself" 2>&1)
+  tag_add_result=$(govc tags.attach -c "$category" "$tag" "$myself" 2>&1)
   
   if [ $? -ne 0 ]; then
     echo -e "\n\033[31mError:\033[0m Failed to add tag \033[34m$tag\033[0m to myself."
