@@ -292,7 +292,7 @@ function check_tag() {
       echo -e "\n\e[33mWarning:\e[0m This virtual machine does not have a \e[35m$category\e[0m tag."
       echo -e "         The CPI driver will not remove the taint until one has been added."  
     else
-      echo -e "\n\e[33mWarning:\e[0m This virtual machine has a \e[35m$category\e[0m tag but it is not the request one."      
+      echo -e "\n\e[33mWarning:\e[0m This virtual machine has a \e[35m$category\e[0m tag but it is not the requested one."      
     fi    
   }
 
@@ -319,8 +319,14 @@ function check_tag() {
     return 0
   fi
   
-  tag_exists=$([[ $(govc tags.info "$tag" | grep Category | awk '{print $2}') =~ "$category" ]] && a=true || a=false)
+  tag_data=$(govc tags.info -json "$tag" 2>/dev/null | jq -r ".[] | select(.category_id==\"$category\")" 2>&1)
   
+  if [[ $? -ne 0 || -z "$tag_data" || "$tag_data" =~ "not found" ]]; then
+    tag_exists=false
+  else
+    tag_exists=true
+  fi  
+
   if [[ $tag_exists == false ]]; then
     if [[ "$VSPHERE_CPI_CREATE_TAGS" == true ]]; then
       echo -e "\nCreating tag \033[34m$tag\033[0m"
@@ -331,22 +337,25 @@ function check_tag() {
         show_warning
         return 0
       fi
-      echo -e "\033[32mSuccess!\033[0m"    
-    else
-      echo -e "\033[33mTag category found but tag does not exist in vSphere!\033[0m"
-      show_warning
-      return 0
-    fi
-    if [[ $(govc tags.ls | grep $tag | awk '{print $2}') != $category ]]; then 
-      echo -e "\033[33mThe tag does not belong to the specified category!\033[0m"
-      show_warning
-      return 0
+      echo -e "\033[32mSuccess!\033[0m"
+    else      
+      tag_category=$(govc tags.info -json "$tag" 2>/dev/null | jq ".[].category_id" | tr '\n' ', ' | tr -d '" ' | sed 's/.$//')
+      if [[ ! -z "$tag_category" && "$tag_category" != "$category" ]]; then 
+        echo -e "\033[33mThe tag was found belonging to the category(s): \033[35m$tag_category\033[0m!\033[0m"
+        show_warning 
+        return 0
+      else
+        echo -e "\033[33mTag category found but tag does not exist in vSphere!\033[0m"
+        show_warning
+        return 0
+      fi
     fi
   fi
 
   if [[ ! -z "$currentTag" && "$currentTag" != "$tag" ]]; then
-    echo -e "\nRemoving tag \033[34m$currentTag\033[0m"    
-    tag_remove_result=$(govc tags.detach "$currentTag" "$myself" 2>&1)
+    echo -e "\nRemoving tag \033[34m$currentTag\033[0m"
+    currentTagId=$(govc tags.info -json "$currentTag" | jq -r ".[] | select(.category_id==\"$category\").id" 2>&1)
+    tag_remove_result=$(govc tags.detach "$currentTagId" "$myself" 2>&1)
     if [ $? -ne 0 ]; then
       echo -e "\n\033[31mError:\033[0m Failed to remove tag \033[34m$currentTag\033[0m from myself."
       echo -e "       $tag_remove_result"
