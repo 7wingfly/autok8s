@@ -564,12 +564,17 @@ if [[ $INSTALL_VSPHERE_CPI_DRIVER == true ]]; then
   if [[ -z "$VSPHERE_CPI_CONFIG_FILE" ]]; then
     echo -e "\n\033[36mGenerate vSphere config\033[0m"
 
+    export VMWARE_SECRET_NAME="vsphere-cloud-secret"
+    export VMWARE_CPI_NAMESPACE="vmware-system-cpi"
+    export SECRET_FILE="$VMWARE_SECRET_NAME.yaml"
+    export CONFIGMAP_FILE="vsphere-cloud-config.yaml"
+
     export VSPHERE_CONF="
 global:
   port: 443  
   insecureFlag: $VCENTER_INSECURE  
-  secretName: vsphere-cloud-secret
-  secretNamespace: kube-system
+  secretName: $VMWARE_SECRET_NAME
+  secretNamespace: $VMWARE_CPI_NAMESPACE
 vcenter:
   $VCENTER_ADDR:
     server: $VCENTER_ADDR
@@ -598,15 +603,11 @@ labels: {}
 
   echo -e "\n\033[36mCreate vSphere cloud configmap and secret\033[0m"
 
-  export VMWARE_CPI_NAMESPACE="vmware-system-cpi"
-  export SECRET_FILE="vsphere-cloud-secret.yaml"
-  export CONFIGMAP_FILE="vsphere-cloud-config.yaml"
-
   cat <<EOF > $SECRET_FILE
 apiVersion: v1
 kind: Secret
 metadata:
-  name: vsphere-cloud-secret
+  name: $VMWARE_SECRET_NAME
   namespace: $VMWARE_CPI_NAMESPACE
 stringData:
   $VCENTER_ADDR.username: $VCENTER_USERNAME
