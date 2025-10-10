@@ -927,9 +927,9 @@ elif [ $k8sCNI == "cilium" ]; then
       )
     fi
     for i in "${!keys[@]}"; do
-      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].key=${keys[$i]}\n"
-      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].operator=Exists\n"
-      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].effect=NoSchedule\n"
+      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].key=${keys[$i]}"
+      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].operator=Exists"
+      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].effect=NoSchedule"
     done
   done
 
