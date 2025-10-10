@@ -56,6 +56,7 @@ export k8sCNI="flannel"                                     # Choose a Kubernete
 export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice if you're only going to have a single node.
 export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm init command. Do not include --config, --apiserver-advertise-address, --pod-network-cidr or --service-cidr.
 export k8sKubeadmConfig=""                                  # Path to kubeadm config file. Cannot be used with 'k8sClusterName', 'k8sPodNetworkCIDR' or 'k8sServiceCIDR'.
+export k8sCloudProvider=""                                  # Sets the --cloud-provider argument in kubelet. Set to 'external' when using VMware CPI.
 
 # ------------------------------
 # Kubernetes Storage Classes
@@ -122,6 +123,7 @@ while [[ $# -gt 0 ]]; do
         --k8s-allow-master-node-schedule) k8sAllowMasterNodeSchedule="$2"; shift; shift;;
         --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
         --k8s-kubeadm-config) k8sKubeadmConfig="$2"; shift; shift;;
+        --k8s-cloud-provider) k8sCloudProvider="$2"; shift; shift;;
         --nfs-install-server) nfsInstallServer="$2"; shift; shift;;
         --nfs-server) nfsServer="$2"; shift; shift;;
         --nfs-share-path) nfsSharePath="$2"; shift; shift;;
@@ -361,6 +363,16 @@ elif [[ ! -z "$k8sKubeadmConfig" ]]; then
       PARAM_CHECK_PASS=false
     fi
   fi
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sCloudProvider" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-cloud-provider\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sCloudProvider" && "$k8sCloudProvider" != "external" ]]; then
+  echo -e "\e[33mWarning:\e[0m \e[35m--k8s-cloud-provider\e[0m should only be set to \e[35mexternal\e[0m. In-tree cloud providers have been depreciated."
+  PARAM_CHECK_WARN=true
 fi
 
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
@@ -777,6 +789,9 @@ kind: InitConfiguration
 localAPIEndpoint:
   advertiseAddress: "$ipAddress"
   bindPort: 6443
+nodeRegistration:
+  kubeletExtraArgs:
+    cloud-provider: "$k8sCloudProvider"
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
