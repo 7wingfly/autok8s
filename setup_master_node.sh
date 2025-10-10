@@ -810,7 +810,7 @@ fi
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
 
-kubeadm init $KUBEADM_ARGS $k8sKubeadmOptions
+kubeadm init ${KUBEADM_ARGS} ${k8sKubeadmOptions}
 
 # Setup kube config files.
 
@@ -835,6 +835,13 @@ if [ $k8sAllowMasterNodeSchedule == true ]; then
 
   kubectl taint node $hostname_lower node-role.kubernetes.io/control-plane:NoSchedule- || true
   kubectl taint node $hostname_lower node-role.kubernetes.io/master:NoSchedule- || true # for older versions
+fi
+
+# Patch Core-DNS deployment when using cloud provider
+
+if [ ! -z $k8sCloudProvider ]; then
+  kubectl -n kube-system patch deploy coredns --type=strategic -p \
+    '{"spec":{"template":{"spec":{"tolerations":[{"key":"node.cloudprovider.kubernetes.io/uninitialized","operator":"Exists","effect":"NoSchedule"}]}}}}'
 fi
 
 # Install a CNI
@@ -893,22 +900,42 @@ elif [ $k8sCNI == "cilium" ]; then
     cilium hubble enable --ui
   fi
 
-  # Get Cilium status (Not all pods start up unless taint is removed)
-  
-  cilium upgrade --reuse-values \
-    --set hubble.relay.tolerations[0].key=node-role.kubernetes.io/control-plane \
-    --set hubble.relay.tolerations[0].operator=Exists \
-    --set hubble.relay.tolerations[0].effect=NoSchedule \
-    --set hubble.relay.tolerations[1].key=node-role.kubernetes.io/master \
-    --set hubble.relay.tolerations[1].operator=Exists \
-    --set hubble.relay.tolerations[1].effect=NoSchedule \
-    --set hubble.ui.tolerations[0].key=node-role.kubernetes.io/control-plane \
-    --set hubble.ui.tolerations[0].operator=Exists \
-    --set hubble.ui.tolerations[0].effect=NoSchedule \
-    --set hubble.ui.tolerations[1].key=node-role.kubernetes.io/master \
-    --set hubble.ui.tolerations[1].operator=Exists \
-    --set hubble.ui.tolerations[1].effect=NoSchedule  
-  
+  # Generate tolerations for Cilium
+
+  CILIUM_TOLERATION_KEYS=(
+    "node-role.kubernetes.io/master"
+    "node-role.kubernetes.io/control-plane"
+  )
+
+  if [ ! -z "$k8sCloudProvider" ]; then
+    CILIUM_TOLERATION_KEYS+=("node.cloudprovider.kubernetes.io/uninitialized")
+  fi
+
+  export CILIUM_TOLERATIONS=""
+
+  for target in "operator" "cilium" "hubble.relay" "hubble.ui"; do 
+    keys=("${CILIUM_TOLERATION_KEYS[@]}")  
+    if [[ "$target" == "cilium" ]]; then
+      keys+=(
+        "node.kubernetes.io/not-ready"
+        "node.kubernetes.io/unreachable"
+        "node.kubernetes.io/disk-pressure"
+        "node.kubernetes.io/memory-pressure"
+        "node.kubernetes.io/pid-pressure"
+        "node.kubernetes.io/unschedulable"
+        "node.kubernetes.io/network-unavailable"
+      )
+    fi
+    for i in "${!keys[@]}"; do
+      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].key=${keys[$i]}\n"
+      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].operator=Exists\n"
+      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].effect=NoSchedule\n"
+    done
+  done
+
+  # Apply tolerations and wait for status to go green
+
+  cilium upgrade --reuse-values ${CILIUM_TOLERATIONS}  
   cilium status --wait
 fi
 
@@ -1055,16 +1082,31 @@ fi
 if [[ $k8sCNI != "none" ]]; then
   echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
-  kubectl create namespace metallb-system || true
-  helm repo add metallb https://metallb.github.io/metallb
-  helm repo update
-  helm upgrade --install metallb metallb/metallb -n metallb-system --wait \
+  export METALLB_TOLERATIONS="
     --set controller.tolerations[0].key=node-role.kubernetes.io/control-plane \
     --set controller.tolerations[0].operator=Exists \
     --set controller.tolerations[0].effect=NoSchedule \
     --set controller.tolerations[1].key=node-role.kubernetes.io/master \
     --set controller.tolerations[1].operator=Exists \
     --set controller.tolerations[1].effect=NoSchedule
+  "  
+
+  if [ ! -z $k8sCloudProvider ]; then
+    export METALLB_TOLERATIONS_CLOUDPROVIDER="
+      --set controller.tolerations[2].key=node.cloudprovider.kubernetes.io/uninitialized \
+      --set controller.tolerations[2].operator=Exists \
+      --set controller.tolerations[2].effect=NoSchedule
+    "
+  else
+    export METALLB_TOLERATIONS_CLOUDPROVIDER=""
+  fi
+
+  kubectl create namespace metallb-system || true
+  helm repo add metallb https://metallb.github.io/metallb
+  helm repo update
+  helm upgrade --install metallb metallb/metallb -n metallb-system --wait \
+    ${METALLB_TOLERATIONS} \
+    ${METALLB_TOLERATIONS_CLOUDPROVIDER}
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
   export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
@@ -1095,15 +1137,30 @@ fi
 
 echo -e "\033[32mInstall Metrics Server\033[0m"
 
-helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system \
-  --set args={--kubelet-insecure-tls} \
+export METRICS_SERVER_TOLERATIONS="
   --set tolerations[0].key=node-role.kubernetes.io/control-plane \
   --set tolerations[0].operator=Exists \
   --set tolerations[0].effect=NoSchedule \
   --set tolerations[1].key=node-role.kubernetes.io/master \
   --set tolerations[1].operator=Exists \
-  --set tolerations[1].effect=NoSchedule    
+  --set tolerations[1].effect=NoSchedule
+"
+
+  if [ ! -z $k8sCloudProvider ]; then
+    export METRICS_SERVER_TOLERATIONS_CLOUDPROVIDER="
+      --set tolerations[2].key=node.cloudprovider.kubernetes.io/uninitialized \
+      --set tolerations[2].operator=Exists \
+      --set tolerations[2].effect=NoSchedule
+    "
+  else
+    export METRICS_SERVER_TOLERATIONS_CLOUDPROVIDER=""
+  fi
+
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system \
+  --set args={--kubelet-insecure-tls} \
+  ${METRICS_SERVER_TOLERATIONS} \
+  ${METRICS_SERVER_TOLERATIONS_CLOUDPROVIDER}
 
 # Install and bootstrap Flux CD https://fluxcd.io/flux/cmd/flux_bootstrap_git/
 
