@@ -792,6 +792,7 @@ localAPIEndpoint:
 nodeRegistration:
   kubeletExtraArgs:
     cloud-provider: "$k8sCloudProvider"
+    node-ip: "$ipAddress"
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
