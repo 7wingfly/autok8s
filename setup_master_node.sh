@@ -941,7 +941,7 @@ elif [ $k8sCNI == "cilium" ]; then
 
   # Apply tolerations and wait for status to go green
 
-  cilium upgrade --reuse-values ${CILIUM_TOLERATIONS}  
+  cilium upgrade --reuse-values ${CILIUM_TOLERATIONS} --set ipam.operator.clusterPoolIPv4PodCIDRList="$k8sPodNetworkCIDR"
   cilium status --wait #|| true
 fi
 
