@@ -941,7 +941,7 @@ elif [ $k8sCNI == "cilium" ]; then
   # Apply tolerations and wait for status to go green
 
   cilium upgrade --reuse-values ${CILIUM_TOLERATIONS}  
-  cilium status --wait || true
+  cilium status --wait #|| true
 fi
 
 # Install Helm
