@@ -921,10 +921,14 @@ elif [ $k8sCNI == "cilium" ]; then
 
   for target in "operator" "cilium" "hubble.relay" "hubble.ui"; do 
     keys=("${CILIUM_TOLERATION_KEYS[@]}")
-    if [[ "$target" == "cilium" ]]; then
+    if [[ "$target" =~ ^(cilium|operator)$ ]]; then
       keys+=(
         "node.kubernetes.io/not-ready"
         "node.kubernetes.io/unreachable"
+      )
+    fi
+    if [[ "$target" =~ "cilium" ]]; then
+      keys+=(
         "node.kubernetes.io/disk-pressure"
         "node.kubernetes.io/memory-pressure"
         "node.kubernetes.io/pid-pressure"
@@ -932,7 +936,7 @@ elif [ $k8sCNI == "cilium" ]; then
         "node.kubernetes.io/network-unavailable"
       )
     fi
-    for i in "${!keys[@]}"; do
+    for i in "${!keys[@]}"; do      
       CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].key=${keys[$i]}"
       CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].operator=Exists"
     done
