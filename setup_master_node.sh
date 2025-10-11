@@ -919,7 +919,7 @@ elif [ $k8sCNI == "cilium" ]; then
   export CILIUM_TOLERATIONS=""
 
   for target in "operator" "cilium" "hubble.relay" "hubble.ui"; do 
-    keys=("${CILIUM_TOLERATION_KEYS[@]}")  
+    keys=("${CILIUM_TOLERATION_KEYS[@]}")
     if [[ "$target" == "cilium" ]]; then
       keys+=(
         "node.kubernetes.io/not-ready"
@@ -932,9 +932,10 @@ elif [ $k8sCNI == "cilium" ]; then
       )
     fi
     for i in "${!keys[@]}"; do
+      effect=$([[ "${keys[$i]}" =~ not-ready|unreachable ]] && echo "NoExecute" || echo "NoSchedule")
       CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].key=${keys[$i]}"
       CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].operator=Exists"
-      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].effect=NoSchedule"
+      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].effect=$effect"
     done
   done
 
