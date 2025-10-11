@@ -933,10 +933,8 @@ elif [ $k8sCNI == "cilium" ]; then
       )
     fi
     for i in "${!keys[@]}"; do
-      effect=$([[ "${keys[$i]}" =~ not-ready|unreachable ]] && echo "NoExecute" || echo "NoSchedule")
       CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].key=${keys[$i]}"
       CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].operator=Exists"
-      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].effect=$effect"
     done
   done
 
