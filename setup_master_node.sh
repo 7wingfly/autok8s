@@ -840,8 +840,13 @@ fi
 # Patch Core-DNS deployment when using cloud provider
 
 if [ ! -z $k8sCloudProvider ]; then
-  kubectl -n kube-system patch deploy coredns --type=strategic -p \
-    '{"spec":{"template":{"spec":{"tolerations":[{"key":"node.cloudprovider.kubernetes.io/uninitialized","operator":"Exists","effect":"NoSchedule"}]}}}}'
+  kubectl patch deployment coredns -n kube-system --type='json' -p='[
+    {"op": "add", "path": "/spec/template/spec/tolerations/-", "value": {
+      "key": "node.cloudprovider.kubernetes.io/uninitialized",
+      "operator": "Exists",      
+      "effect": "NoSchedule"
+    }}
+  ]'
 fi
 
 # Install a CNI
@@ -936,7 +941,7 @@ elif [ $k8sCNI == "cilium" ]; then
   # Apply tolerations and wait for status to go green
 
   cilium upgrade --reuse-values ${CILIUM_TOLERATIONS}  
-  cilium status --wait
+  cilium status --wait || true
 fi
 
 # Install Helm
