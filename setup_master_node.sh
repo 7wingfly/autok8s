@@ -214,9 +214,7 @@ fi
 if [[ ! "$k8sAllowMasterNodeSchedule" =~ ^(true|false)$ ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--k8s-allow-master-node-schedule\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
   PARAM_CHECK_PASS=false
-elif [[ "$k8sAllowMasterNodeSchedule" == false ]]; then
-  cnischedulewarn=""
-  if [ $k8sCNI == "cilium" ]; then cnischedulewarn=" and some Cilium pods"; fi
+elif [[ "$k8sAllowMasterNodeSchedule" == false ]]; then  
   echo -e "\e[33mWarning:\e[0m Master (control-plane) node scheduling will not be enabled. This means that non-core pods will not be scheduled until a worker node is added to the cluster."
   PARAM_CHECK_WARN=true
 fi
@@ -373,6 +371,18 @@ fi
 if [[ ! -z "$k8sCloudProvider" && "$k8sCloudProvider" != "external" ]]; then
   echo -e "\e[33mWarning:\e[0m \e[35m--k8s-cloud-provider\e[0m should only be set to \e[35mexternal\e[0m. In-tree cloud providers have been depreciated."
   PARAM_CHECK_WARN=true
+fi
+
+if [[ -n "$k8sCloudProvider" ]]; then
+  echo -e "\e[33mWarning:\e[0m Using \e[35m--k8s-cloud-provider\e[0m runs Kubernetes in external CCM mode and taints nodes with \e[35mnode.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule\e[0m."
+  echo -e "         Pods \e[1mwithout\e[0m a matching toleration will not schedule until a CCM (e.g. VMware CPI) is installed \e[1mor\e[0m the taint is removed."    
+  echo -e "         Tolerations will be added to: CoreDNS, Cilium, MetalLB, Metrics Server, SMB & NFS CSI drivers, and Flux (so GitOps can deploy a CCM if desired).\n"
+  echo -e "         Next steps:"
+  echo -e "           • Install your CCM (recommended), or"
+  echo -e "           • Temporarily remove the taint: \e[36mkubectl taint nodes --all node.cloudprovider.kubernetes.io/uninitialized:NoSchedule-\e[0m, or"
+  echo -e "           • Add tolerations to your own workloads if you must schedule before CCM.\n"
+  echo -e "         If you intend to use VMware CPI, check out the AutoK8s VMware scripts at https://github.com/7wingfly/autok8s/tree/main/vmware"
+  PARAM_CHECK_WARN=true  
 fi
 
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
@@ -778,7 +788,7 @@ fi
 
 # Init Kubernetes https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
 
-if [[ -z "$k8sKubeadmConfig" && "$k8sClusterName" == "kubernetes" ]]; then  
+if [[ -z "$k8sKubeadmConfig" && "$k8sClusterName" == "kubernetes" && -z "$k8sCloudProvider" ]]; then  
   export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=$k8sPodNetworkCIDR --service-cidr=$k8sServiceCIDR --kubernetes-version=$KUBEADM_VERSION"
 else 
   if [[ -z "$k8sKubeadmConfig" ]]; then
@@ -948,6 +958,31 @@ elif [ $k8sCNI == "cilium" ]; then
   cilium status --wait #|| true
 fi
 
+# Define common tolerations
+
+export COMMON_TOLERATIONS="
+  --set controller.tolerations[0].key=node-role.kubernetes.io/controlplane \
+  --set controller.tolerations[0].operator=Exists \
+  --set controller.tolerations[0].effect=NoSchedule \
+  --set controller.tolerations[1].key=node-role.kubernetes.io/control-plane \
+  --set controller.tolerations[1].operator=Exists \
+  --set controller.tolerations[1].effect=NoSchedule \
+  --set controller.tolerations[2].key=node-role.kubernetes.io/master \
+  --set controller.tolerations[2].operator=Exists \
+  --set controller.tolerations[2].effect=NoSchedule \
+  --set controller.tolerations[3].key=CriticalAddonsOnly \
+  --set controller.tolerations[3].operator=Exists \
+  --set controller.tolerations[3].effect=NoSchedule
+"  
+
+if [ ! -z $k8sCloudProvider ]; then
+  COMMON_TOLERATIONS+="
+    --set controller.tolerations[4].key=node.cloudprovider.kubernetes.io/uninitialized \
+    --set controller.tolerations[4].operator=Exists \
+    --set controller.tolerations[4].effect=NoSchedule
+  "
+fi
+
 # Install Helm
 
 echo -e "\033[32mInstalling Helm\033[0m"
@@ -995,7 +1030,7 @@ if [ $INSTALL_NFS_DRIVER == true ]; then
   export NFS_NAME_SPACE="kube-system"    
   export NFS_STORAGE_CLASS_FILE="nfsStorageClass.yaml"
   helm repo add csi-driver-nfs https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
-  helm install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE $CSI_CNI_ANNOTATIONS
+  helm install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
    
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-nfs/blob/master/docs/driver-parameters.md
   cat <<EOF > $NFS_STORAGE_CLASS_FILE
@@ -1056,7 +1091,7 @@ if [ $INSTALL_SMB_DRIVER == true ]; then
   export SMB_SECRET_NAME="smb-credentials-$SMB_SERVER_NAME_SAFE"  
   export SMB_STORAGE_CLASS_FILE="smbStorageClass.yaml"
   helm repo add csi-driver-smb https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts
-  helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true $CSI_CNI_ANNOTATIONS
+  helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
   kubectl create secret generic $SMB_SECRET_NAME --from-literal username="$smbUsername" --from-literal password="$smbPassword" -n $SMB_NAME_SPACE
 
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-smb/blob/master/docs/driver-parameters.md
@@ -1091,31 +1126,10 @@ fi
 if [[ $k8sCNI != "none" ]]; then
   echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
-  export METALLB_TOLERATIONS="
-    --set controller.tolerations[0].key=node-role.kubernetes.io/control-plane \
-    --set controller.tolerations[0].operator=Exists \
-    --set controller.tolerations[0].effect=NoSchedule \
-    --set controller.tolerations[1].key=node-role.kubernetes.io/master \
-    --set controller.tolerations[1].operator=Exists \
-    --set controller.tolerations[1].effect=NoSchedule
-  "  
-
-  if [ ! -z $k8sCloudProvider ]; then
-    export METALLB_TOLERATIONS_CLOUDPROVIDER="
-      --set controller.tolerations[2].key=node.cloudprovider.kubernetes.io/uninitialized \
-      --set controller.tolerations[2].operator=Exists \
-      --set controller.tolerations[2].effect=NoSchedule
-    "
-  else
-    export METALLB_TOLERATIONS_CLOUDPROVIDER=""
-  fi
-
   kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb
   helm repo update
-  helm upgrade --install metallb metallb/metallb -n metallb-system --wait \
-    ${METALLB_TOLERATIONS} \
-    ${METALLB_TOLERATIONS_CLOUDPROVIDER}
+  helm upgrade --install metallb metallb/metallb -n metallb-system --wait ${COMMON_TOLERATIONS}
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
   export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
@@ -1209,13 +1223,15 @@ if [[ "$fluxInstall" = true ]]; then
     else
       fluxGitPath="clusters/$k8sClusterName"
     fi
-  fi  
+  fi
+
+  FLUX_CCM_TAINT_TOLERATION=$([[ ! -z "$k8sCloudProvider" ]] && echo "node.cloudprovider.kubernetes.io/uninitialized" || echo "")
 
   flux bootstrap git $FLUX_BOOTSTRAP_ARGS \
     --branch=$fluxGitBranch \
     --path=$fluxGitPath \
     --silent \
-    --toleration-keys=node-role.kubernetes.io/control-plane,node-role.kubernetes.io/master \
+    --toleration-keys=node-role.kubernetes.io/control-plane,node-role.kubernetes.io/master,$FLUX_CCM_TAINT_TOLERATION \
     $fluxOptions || true
 fi
 
@@ -1240,3 +1256,9 @@ echo -e "curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_w
     --k8s-master-port $JOIN_PORT \\
     --token $JOIN_TOKEN \\
     --discovery-token-ca-cert-hash $JOIN_CERT_HASH\n\033[0m"
+
+if [[ -n "$k8sCloudProvider" ]]; then
+  echo -e "\e[33mReminder:\e[0m Install your CCM (e.g. VMware CPI) or manually remove the taint with \e[35mkubectl taint nodes --all node.cloudprovider.kubernetes.io/uninitialized:NoSchedule-\e[0m."
+  echo -e "          \e[1mImportant:\e[0m Removing the taint will prevent the CCM from initializing correctly. The AutoK8s VMware script will add the taint if it is missing during CPI installation."
+  echo -e "          Workloads without tolerations will remain unschedulable until the taint is cleared."
+fi
