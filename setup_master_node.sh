@@ -686,7 +686,7 @@ normalize_k8s_version() {
 }
 
 pick_pkg_ver() {
-  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }'
+  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }' || true
 }
 
 if [ $k8sVersion == "latest" ]; then
@@ -797,26 +797,26 @@ else
 apiVersion: kubeadm.k8s.io/v1beta3
 kind: InitConfiguration
 localAPIEndpoint:
-  advertiseAddress: "$ipAddress"
+  advertiseAddress: ${ipAddress}
   bindPort: 6443
 nodeRegistration:
   kubeletExtraArgs:
-    cloud-provider: "$k8sCloudProvider"
-    node-ip: "$ipAddress"
+    cloud-provider: ${k8sCloudProvider}
+    node-ip: ${$ipAddress}
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
-clusterName: "$k8sClusterName"
-kubernetesVersion: "$KUBEADM_VERSION"
+clusterName: ${k8sClusterName}
+kubernetesVersion: ${KUBEADM_VERSION}
 networking:
-  podSubnet: "$k8sPodNetworkCIDR"
-  serviceSubnet: "$k8sServiceCIDR"
+  podSubnet: ${k8sPodNetworkCIDR}
+  serviceSubnet: ${k8sServiceCIDR}
 
 EOF
   fi
   echo -e "\033[32mValidating kubeadm config file\033[0m"
-  kubeadm config validate --config $k8sKubeadmConfig
-  export KUBEADM_ARGS="--config $k8sKubeadmConfig"
+  kubeadm config validate --config "$k8sKubeadmConfig"
+  export KUBEADM_ARGS="--config \"$k8sKubeadmConfig\""
 fi
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"

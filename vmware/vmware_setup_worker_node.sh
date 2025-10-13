@@ -6,7 +6,7 @@ echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
 echo -e '\e[35m                Version:\e[36m 1.7.0\e[0m\n'
-echo -e '\e[35m  Kubernetes Installation Script:\e[36m VMWare vSphere CSI and CPI Setup\e[0m'
+echo -e '\e[35m  Kubernetes Installation Script:\e[36m VMware vSphere CSI and CPI Setup\e[0m'
 echo -e '\e[35m                                 \e[36m Worker Node Edition\e[0m\n'
 
 # Define Variables, Default Values & Parameters 
@@ -383,7 +383,7 @@ function check_tag() {
 }
 
 if [[ "$MANAGE_TAGS_FOR_VSPHERE_CPI" == true ]]; then
-  echo -e "\n\033[36mCheck tags for VMWare CPI\033[0m"
+  echo -e "\n\033[36mCheck tags for vSphere CPI\033[0m"
       
   if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_REGION" ]]; then
     check_tag "$VSPHERE_CPI_TAG_CATEGORY_REGION" "$VSPHERE_CPI_TAG_REGION"

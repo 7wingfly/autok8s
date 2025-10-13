@@ -6,7 +6,7 @@ echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
 echo -e '\e[35m                Version:\e[36m 1.7.0\e[0m\n'
-echo -e '\e[35m  Kubernetes Installation Script:\e[36m VMWare vSphere CSI and CPI Setup\e[0m'
+echo -e '\e[35m  Kubernetes Installation Script:\e[36m VMware vSphere CSI and CPI Setup\e[0m'
 echo -e '\e[35m                                 \e[36m Master Node Edition\e[0m\n'
 
 # Define Variables, Default Values & Parameters 
@@ -336,10 +336,10 @@ else
   echo -e "\033[32mSuccessfully found ${#storageClasses[@]} of ${#datastores[@]} datastore(s).\033[0m"
 fi
 
-# Install VMWare CSI driver Helm chart
+# Install VMware CSI driver Helm chart
 # https://docs.vmware.com/en/VMware-vSphere-Container-Storage-Plug-in/3.0/vmware-vsphere-csp-getting-started/GUID-A1982536-F741-4614-A6F2-ADEE21AA4588.html
 
-echo -e "\n\033[36mInstall VMWare CSI driver\033[0m"
+echo -e "\n\033[36mInstall vSphere CSI driver\033[0m"
 
 if [ $VSPHERE_CSI_DRIVER_VERSION == "latest" ]; then
   VSPHERE_CSI_DRIVER_VERSION=$(curl -s https://api.github.com/repos/kubernetes-sigs/vsphere-csi-driver/releases/latest | grep tag_name | cut -d '"' -f4 | sed 's/^v//')
@@ -546,18 +546,7 @@ function check_tag() {
 }
 
 if [[ $INSTALL_VSPHERE_CPI_DRIVER == true ]]; then 
-  echo -e "\033[36mInstall VMWare CPI driver\033[0m"
-
-  # Configure kube-controller-manager for external cloud provider
-
-  export KUBE_CONTROLLER_MANAGER_CONF="/etc/kubernetes/manifests/kube-controller-manager.yaml"
-
-  if [[ $(cat $KUBE_CONTROLLER_MANAGER_CONF | grep -c "cloud-provider=external") == 0 ]]; then
-    echo -e "\n\033[36mConfigure kube-controller-manager for external cloud provider\033[0m"
-    yq -iy '.spec.containers[0].command += ["--cloud-provider=external"]' $KUBE_CONTROLLER_MANAGER_CONF 
-  else
-    echo -e "\n\033[36mkube-controller-manager already configured for external cloud provider\033[0m"
-  fi
+  echo -e "\033[36mInstall VMware CPI driver\033[0m"
 
   # Create vSphere cloud configmap and secret  
 
@@ -633,7 +622,7 @@ EOF
   # Install CPI driver Helm chart
   # https://cloud-provider-vsphere.sigs.k8s.io/tutorials/kubernetes-on-vsphere-with-kubeadm
 
-  echo -e "\n\033[36mInstall VMWare CPI driver Helm chart\033[0m"
+  echo -e "\n\033[36mInstall vSphere CPI driver Helm chart\033[0m"
 
   helm repo add vsphere-cpi https://kubernetes.github.io/cloud-provider-vsphere
   helm repo update

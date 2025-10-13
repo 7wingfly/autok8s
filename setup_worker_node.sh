@@ -53,6 +53,8 @@ export k8sMasterPort="6443"
 export k8sToken=""                                          # This and the cert hash can be found by running 'kubeadm token create --print-join-command' on the master node
 export k8sTokenDiscoveryCaCertHash=""                       
 export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm join command.
+export k8sKubeadmConfig=""                                  # Path to kubeadm config file.
+export k8sCloudProvider=""                                  # Sets the --cloud-provider argument in kubelet. Set to 'external' when using VMware CPI.
 
 # ------------------------------
 # Parameters
@@ -72,6 +74,8 @@ while [[ $# -gt 0 ]]; do
         --k8s-master-ip) k8sMasterIP="$2"; shift; shift;;
         --k8s-master-port) k8sMasterPort="$2"; shift; shift;;
         --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
+        --k8s-kubeadm-config) k8sKubeadmConfig="$2"; shift; shift;;
+        --k8s-cloud-provider) k8sCloudProvider="$2"; shift; shift;;
         --token) k8sToken="$2"; shift; shift;;
         --discovery-token-ca-cert-hash) k8sTokenDiscoveryCaCertHash="$2"; shift; shift;;
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
@@ -183,6 +187,34 @@ fi
 if [[ -z "$k8sTokenDiscoveryCaCertHash" ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--discovery-token-ca-cert-hash\e[0m is required."
   PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sKubeadmOptions" ]]; then
+  echo -e "\e[33mWarning:\e[0m Using \e[35m--k8s-kubeadm-config\e[0m with \e[35m--k8s-kubeadm-options\e[0m may cause kubeadm init to fail depending on the options used.\e[0m"
+  PARAM_CHECK_WARN=true
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -f "$k8sKubeadmConfig" ]]; then
+  echo -e "\e[31mError:\e[0m The file \e[35m$k8sKubeadmConfig\e[0m specfied for \e[35m--k8s-kubeadm-config\e[0m does not exist.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sCloudProvider" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-cloud-provider\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sCloudProvider" && "$k8sCloudProvider" != "external" ]]; then
+  echo -e "\e[33mWarning:\e[0m \e[35m--k8s-cloud-provider\e[0m should only be set to \e[35mexternal\e[0m. In-tree cloud providers have been depreciated."
+  PARAM_CHECK_WARN=true
+fi
+
+if [[ -n "$k8sCloudProvider" ]]; then
+  echo -e "\e[33mWarning:\e[0m Using \e[35m--k8s-cloud-provider\e[0m runs Kubernetes in external CCM mode and taints nodes with \e[35mnode.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule\e[0m."
+  echo -e "         Pods \e[1mwithout\e[0m a matching toleration will not schedule until a CCM (e.g. VMware CPI) is installed \e[1mor\e[0m the taint is removed."    
+  echo -e "         Only use this option if you also used it on the master (control-plane) node!\n"
+  echo -e "         If you intend to use VMware CPI, check out the AutoK8s VMware scripts at https://github.com/7wingfly/autok8s/tree/main/vmware"
+  PARAM_CHECK_WARN=true  
 fi
 
 if [ $PARAM_CHECK_PASS == false ]; then
@@ -314,7 +346,7 @@ normalize_k8s_version() {
 }
 
 pick_pkg_ver() {
-  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }'
+  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }' || true
 }
 
 if [ $k8sVersion == "latest" ]; then
@@ -416,9 +448,31 @@ fi
 
 # Join Cluster
 
+if [[ -z "$k8sKubeadmConfig" ]]; then
+  export k8sKubeadmConfig="/tmp/kubeadm-config.yaml"
+  cat <<EOF > $k8sKubeadmConfig
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: JoinConfiguration
+discovery:
+  bootstrapToken:
+    apiServerEndpoint: ${k8sMasterIP}:${k8sMasterPort}
+    token: ${k8sToken}
+    caCertHashes:
+    - ${k8sTokenDiscoveryCaCertHash}
+nodeRegistration:
+  kubeletExtraArgs:
+    cloud-provider: ${k8sCloudProvider}
+
+EOF
+fi
+
+echo -e "\033[32mValidating kubeadm config file\033[0m"
+
+kubeadm config validate --config $k8sKubeadmConfig
+
 echo -e "\033[32mJoining Kubernetes Cluster\033[0m"
 
-kubeadm join $k8sMasterIP:$k8sMasterPort --token $k8sToken --discovery-token-ca-cert-hash $k8sTokenDiscoveryCaCertHash $k8sKubeadmOptions
+kubeadm join --config "$k8sKubeadmConfig" ${k8sKubeadmOptions}
 
 # Print success message
 
