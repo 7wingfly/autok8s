@@ -21,7 +21,7 @@ export VCENTER_DATASTORES=""
 export VCENTER_DATASTORES_DELIMITER=","
 export VSPHERE_CSI_DRIVER_VERSION="latest"
 export STORAGE_CLASS_NAME_PREFIX="vsphere-csi"
-export INSTALL_VSPHERE_CPI_DRIVER=false
+export INSTALL_VSPHERE_CPI_DRIVER=true
 export VSPHERE_CPI_TAG_CATEGORY_REGION="k8s-region"
 export VSPHERE_CPI_TAG_CATEGORY_ZONE="k8s-zone"
 export VSPHERE_CPI_TAG_REGION=""
@@ -362,6 +362,7 @@ export CSI_DRIVER_BASE_URL="https://raw.githubusercontent.com/kubernetes-sigs/vs
 
 kubectl apply -f $CSI_DRIVER_BASE_URL/namespace.yaml
 kubectl apply -f $CSI_DRIVER_BASE_URL/vsphere-csi-driver.yaml
+kubectl scale deploy vsphere-csi-controller --replicas=1 -n vmware-system-csi
 kubectl create secret generic vsphere-config-secret --from-file=$CSI_VSPHERE_CONF --namespace=$VMWARE_CSI_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
 
 rm $CSI_VSPHERE_CONF

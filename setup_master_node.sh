@@ -802,7 +802,7 @@ localAPIEndpoint:
 nodeRegistration:
   kubeletExtraArgs:
     cloud-provider: ${k8sCloudProvider}
-    node-ip: ${$ipAddress}
+    node-ip: ${ipAddress}
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
@@ -815,8 +815,8 @@ networking:
 EOF
   fi
   echo -e "\033[32mValidating kubeadm config file\033[0m"
-  kubeadm config validate --config "$k8sKubeadmConfig"
-  export KUBEADM_ARGS="--config \"$k8sKubeadmConfig\""
+  kubeadm config validate --config ${k8sKubeadmConfig}
+  export KUBEADM_ARGS="--config ${k8sKubeadmConfig}"
 fi
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
@@ -955,7 +955,7 @@ elif [ $k8sCNI == "cilium" ]; then
   # Apply tolerations and wait for status to go green
 
   cilium upgrade --reuse-values ${CILIUM_TOLERATIONS} --set ipam.operator.clusterPoolIPv4PodCIDRList="$k8sPodNetworkCIDR"
-  cilium status --wait #|| true
+  cilium status --wait || true
 fi
 
 # Define common tolerations

@@ -211,7 +211,7 @@ fi
 
 if [[ -n "$k8sCloudProvider" ]]; then
   echo -e "\e[33mWarning:\e[0m Using \e[35m--k8s-cloud-provider\e[0m runs Kubernetes in external CCM mode and taints nodes with \e[35mnode.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule\e[0m."
-  echo -e "         Pods \e[1mwithout\e[0m a matching toleration will not schedule until a CCM (e.g. VMware CPI) is installed \e[1mor\e[0m the taint is removed."    
+  echo -e "         Pods \e[1mwithout\e[0m a matching toleration will not schedule until a CCM (e.g. VMware CPI) is installed \e[1mor\e[0m the taint is removed."
   echo -e "         Only use this option if you also used it on the master (control-plane) node!\n"
   echo -e "         If you intend to use VMware CPI, check out the AutoK8s VMware scripts at https://github.com/7wingfly/autok8s/tree/main/vmware"
   PARAM_CHECK_WARN=true  
@@ -468,11 +468,11 @@ fi
 
 echo -e "\033[32mValidating kubeadm config file\033[0m"
 
-kubeadm config validate --config $k8sKubeadmConfig
+kubeadm config validate --config ${k8sKubeadmConfig}
 
 echo -e "\033[32mJoining Kubernetes Cluster\033[0m"
 
-kubeadm join --config "$k8sKubeadmConfig" ${k8sKubeadmOptions}
+kubeadm join --config ${k8sKubeadmConfig} ${k8sKubeadmOptions}
 
 # Print success message
 
