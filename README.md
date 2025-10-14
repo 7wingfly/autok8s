@@ -97,21 +97,21 @@ It's recommended to read the Master Node Parameters [document](https://github.co
 ## Go Time!
 You can run the `setup_master_node.sh` script in one of two ways. Download or copy & paste the script directly from [here](https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh), give it execute permissions and run it as `sudo`.
 
-```
+```bash
 sudo chmod +x ./setup_master_node.sh
 sudo ./setup_master_node.sh --k8s-load-balancer-ip-range <IP range or CIDR>
 ```
 
 Or you can run it straight from GitHub using the `curl` command as follows:
 
-```
+```bash
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
     --k8s-load-balancer-ip-range <IP range or CIDR>
 ```
 
 Note that if your server has more than one IP address you will need to specify which to use for the Kubernetes Server API. The script will not proceed if more than one is detected.
 
-```
+```bash
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_master_node.sh | sudo bash -s -- \
     --ip-address <master node IP> \
     --k8s-load-balancer-ip-range <IP range or CIDR>
@@ -127,7 +127,7 @@ The `setup_worker_node.sh` script also has several parameters you can use to con
 
 As shown earlier in the success message, the `setup_worker_node.sh` command can also be ran from GitHub using the `curl` command:
 
-```
+```bash
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_worker_node.sh | sudo bash -s -- \
     --k8s-master-ip <master node IP> \
     --k8s-master-port 6443 \
@@ -143,7 +143,7 @@ Links to documentation used to create this project:
 
 Docker install docs:
 <br>
-https://docs.docker.com/engine/install/ubuntu/
+https://docs.docker.com/engine/install/ubuntu
 
 Containerd config:
 <br>
@@ -151,11 +151,11 @@ https://kubernetes.io/docs/setup/production-environment/container-runtimes/#cont
 
 Kubernetes install docs:
 <br>
-https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm
 
 Kubeadm init docs:
 <br>
-https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
+https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init
 
 Flannel networking docs:
 <br>
@@ -183,7 +183,7 @@ MetalLB load balancer
 <br>
 https://metallb.universe.tf/installation/
 <br>
-https://metallb.universe.tf/configuration/_advanced_l2_configuration/
+https://metallb.universe.tf/configuration/_advanced_l2_configuration
 
 Metrics Server
 <br>
@@ -191,4 +191,4 @@ https://github.com/kubernetes-sigs/metrics-server/blob/master/README.md
 
 Flux CD
 <br>
- https://fluxcd.io/flux/cmd/flux_bootstrap_git/
+ https://fluxcd.io/flux/cmd/flux_bootstrap_git

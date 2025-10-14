@@ -14,7 +14,9 @@ echo -e '\e[35m                                 \e[36m Worker Node Edition\e[0m\
 
 export VCENTER_ADDR=""
 export VCENTER_USERNAME="administrator@vsphere.local"
+export VCENTER_PASSWORD=""
 export VCENTER_INSECURE=false
+export VCENTER_USER_GROUP="Administrators"
 export MANAGE_TAGS_FOR_VSPHERE_CPI=true
 export VSPHERE_CPI_TAG_CATEGORY_REGION="k8s-region"
 export VSPHERE_CPI_TAG_CATEGORY_ZONE="k8s-zone"
@@ -34,6 +36,7 @@ while [[ $# -gt 0 ]]; do
         --vcenter-username) VCENTER_USERNAME="$2"; shift; shift;;
         --vcenter-password) VCENTER_PASSWORD="$2"; shift; shift;;
         --vcenter-insecure) VCENTER_INSECURE="$2"; shift; shift;;
+        --vcenter-user-group) VCENTER_USER_GROUP="$2"; shift; shift;;
         --manage-tags-for-vsphere-cpi) MANAGE_TAGS_FOR_VSPHERE_CPI="$2"; shift; shift;;
         --vsphere-cpi-tag-category-region) VSPHERE_CPI_TAG_CATEGORY_REGION="$2"; shift; shift;;
         --vsphere-cpi-tag-category-zone) VSPHERE_CPI_TAG_CATEGORY_ZONE="$2"; shift; shift;;
@@ -56,7 +59,7 @@ if [[ -f "/etc/kubernetes/admin.conf" || ! -f "/etc/kubernetes/kubelet.conf" ]];
 fi
 
 if [[ ! "$VCENTER_INSECURE" =~ ^(true|false)$ ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-insecure\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+    echo -e "\e[31mError:\e[0m \e[35m--vcenter-insecure\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mfalse\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 
@@ -66,12 +69,17 @@ if [[ -z "$VCENTER_ADDR" ]]; then
 fi
 
 if [[ -z "$VCENTER_USERNAME" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-username\e[0m is required! (Default: 'administrator@vsphere.local')"
+    echo -e "\e[31mError:\e[0m \e[35m--vcenter-username\e[0m is required! (Default: \e[35madministrator@vsphere.local\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 
 if [[ -z "$VCENTER_PASSWORD" ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--vcenter-password\e[0m is required!"
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ -z "$VCENTER_USER_GROUP" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--vcenter-user-group\e[0m is required! (Default: \e[35mAdministrators\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 
@@ -103,7 +111,7 @@ if [ $PARAM_CHECK_WARN == true ]; then
     sleep 10
 fi
 
-# Install VMware vSphere CSI Driver
+# Script Prerequisites
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # Check sudo & keep sudo running
@@ -153,6 +161,9 @@ else
     echo "govc already installed"
 fi
 
+# VM Configuration
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
 export GOVC_URL="https://$VCENTER_ADDR"
 export GOVC_USERNAME=$VCENTER_USERNAME
 export GOVC_PASSWORD=$VCENTER_PASSWORD
@@ -172,7 +183,7 @@ if [ $? -ne 0 ]; then
         echo -e "\n\033[31mError:\033[0m The provided vcenter credentials are incorrect!"
         echo -e "       Please check the username and password then try again."
     else
-        echo -e "\n\033[31mError:\033[0m An error occured while checking the credentials!"
+        echo -e "\n\033[31mError:\033[0m An error occurred while checking the credentials!"
         echo -e "       $user_credential_check"
     fi
     exit 1
@@ -183,22 +194,21 @@ fi
 echo -e "\nChecking group membership ..."
 
 export user_details=$(govc sso.user.id $VCENTER_USERNAME 2>&1)
-export required_group="Administrators"
 
 if [[ $? -eq 0 ]]; then
     groups=$(echo "$user_details" | grep -oP 'groups=\K[^ ]+')    
     IFS=',' read -ra group_array <<< "$groups"
     isadmin=false
     for group in "${group_array[@]}"; do        
-        if [[ $group == $required_group ]]; then
+        if [[ $group == $VCENTER_USER_GROUP ]]; then
             isadmin=true
             break
         fi
     done
     if [[ $isadmin == "true" ]]; then
-        echo -e "\033[32mThe user is in the $required_group group!\033[0m"
+        echo -e "\033[32mThe user is in the $VCENTER_USER_GROUP group!\033[0m"
     else
-        echo -e "\n\033[33mWarning:\033[0m The user \033[35m$VCENTER_USERNAME\033[0m is not in the \033[35m$required_group\033[0m group!"
+        echo -e "\n\033[33mWarning:\033[0m The user \033[35m$VCENTER_USERNAME\033[0m is not in the \033[35m$VCENTER_USER_GROUP\033[0m group!"
         echo -e "         Make sure that the user account has the required permissions / roles."
     fi
 else
