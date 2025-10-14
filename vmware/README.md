@@ -33,6 +33,10 @@ Here's a high-level overview of the steps `vmware_setup_master_node.sh` will per
 
 **vSphere CSI driver:**
 
+- Checks that the VMware hardware version is 15 or above.
+
+- Checks that a SCSI controller of type `VMware Paravirtual` is installed.
+
 - Applies the advanced setting `disk.EnableUUID=TRUE` if not already set.
 
 - Attempts to find the specified Datastore(s) for which to create Storage Classes, or if unspecified, enumerates all Datastores.
@@ -58,8 +62,7 @@ Here's a high-level overview of the steps `vmware_setup_master_node.sh` will per
   - vCenter address.
   - Datacenter name.  
   - Name of the Secret containing the credentials.
-  - A map of Kubernetes labels (`region` and `zone`) and their corresponding vCenter tag categories (by default: `k8s-region` and `k8s-zone`).
-    
+  - A map of Kubernetes labels (`region` and `zone`) and their corresponding vCenter tag categories (by default: `k8s-region` and `k8s-zone`).    
 
 - Installs the CPI driver via Helm.
 
@@ -68,13 +71,19 @@ Here's a high-level overview of the steps `vmware_setup_master_node.sh` will per
 ### Worker Node VMware Script:
 The worker script is not a technical requirement for a successful deployment of the CSI or CPI drivers; it simply checks and configures the VM with the correct settings and tags if not already set up. If your VMs already meet the requirements, you may ignore this script.
 
-Here's a high-level overview of the steps `setup_worker_node.sh` will perform:
+Here's a high-level overview of the steps `vmware_setup_worker_node.sh` will perform:
 
 - Downloads and installs [govc](https://github.com/vmware/govmomi), a CLI utility for interacting with vCenter. (Required for setup only, not needed by CSI/CPI drivers)
 
 - Authenticates to vCenter and checks the user account group membership (`Administrators` by default).
 
 - Finds its own virtual machine in vCenter via its IP address, then fetches its unique ID and assigned tags and their tag categories.
+
+- Checks that the VMware hardware version is 15 or above.
+
+- Checks that a SCSI controller of type `VMware Paravirtual` is installed.
+
+- Applies the advanced setting `disk.EnableUUID=TRUE` if not already set.
 
 - Checks to see if the specified tags are set on the VM. If they are not, they will be applied. If they do not exist, they will be created along with their tag categories if also absent. Different tags belonging to the same category will be removed if present. (This step is optional).
 
@@ -104,7 +113,7 @@ See more about compatibility and requirements [here](https://techdocs.broadcom.c
 ## Go Time!
 You can run the `vmware_setup_master_node.sh` script in one of two ways. Download or copy & paste the script directly from [here](https://raw.githubusercontent.com/7wingfly/autok8s/main/vmware/vmware_setup_master_node.sh), give it execute permissions and run it as `sudo`.
 
-```bash
+```
 sudo chmod +x ./vmware_setup_master_node.sh
 sudo ./vmware_setup_master_node.sh \
     --vcenter-host <vcenter_host_address> \
@@ -117,7 +126,7 @@ sudo ./vmware_setup_master_node.sh \
 
 Or you can run it straight from GitHub using the `curl` command as follows:
 
-```bash
+```
 curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/vmware/vmware_setup_master_node.sh | sudo bash -s -- \
     --vcenter-host <vcenter_host_address> \
     --vcenter-username <vcenter_username> \
@@ -129,7 +138,13 @@ curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/vmware/vmware_se
 
 If successful, the script should complete in only a few minutes. Once the script is complete, it may take a minute or two for the CPI driver to update the nodes and remove the taints. 
 
-If you are retrospectively running this script on an existing cluster where the `--k8s-cloud-provider` parameter was not used, note that the taint will prevent the scheduling of all new Pods until removed by the CPI. Therefore it's recommended you add tolerations to all critical Pods before executing this script. This includes some system Pods like CoreDNS and some CNIs like Cilium.
+If you are retrospectively running this script on an existing cluster where the `--k8s-cloud-provider` parameter was not used, please note the following:
+
+- The taint will prevent the scheduling of all new Pods until removed by the CPI driver. Therefore it's recommended to add tolerations to all critical Pods before executing this script. This includes some system Pods like CoreDNS and some CNIs like Cilium.
+
+- The worker node script is unable to apply the taint to itself, therefor it's recommended that you run the worker node script first on each worker node, and then the master node script, which will taint all of the nodes at the end. 
+
+- If you add new nodes to the cluster, ensure you specify `--k8s-cloud-provider external` when running autok8s, or manually add the `node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule` taint to the node after it joins the cluster.
 
 ## Links
 

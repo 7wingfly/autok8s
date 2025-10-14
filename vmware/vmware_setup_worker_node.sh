@@ -23,6 +23,7 @@ export VSPHERE_CPI_TAG_CATEGORY_ZONE="k8s-zone"
 export VSPHERE_CPI_TAG_REGION=""
 export VSPHERE_CPI_TAG_ZONE=""
 export VSPHERE_CPI_CREATE_TAGS=true
+export CONTINUE_ON_HARDWARE_ERROR=false
 
 # ------------------------------
 # Parameters
@@ -43,6 +44,7 @@ while [[ $# -gt 0 ]]; do
         --vsphere-cpi-tag-region) VSPHERE_CPI_TAG_REGION="$2"; shift; shift;;
         --vsphere-cpi-tag-zone) VSPHERE_CPI_TAG_ZONE="$2"; shift; shift;;
         --vsphere-cpi-create-tags) VSPHERE_CPI_CREATE_TAGS="$2"; shift; shift;;
+        --continue-on-hardware-error) CONTINUE_ON_HARDWARE_ERROR="$2"; shift; shift;;
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
 done
@@ -100,6 +102,11 @@ fi
 
 if [[ ! "$VSPHERE_CPI_CREATE_TAGS" =~ ^(true|false)$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-create-tags\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mtrue\e[0m)"
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ ! "$CONTINUE_ON_HARDWARE_ERROR" =~ ^(true|false)$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--continue-on-hardware-error\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mfalse\e[0m)"
     PARAM_CHECK_PASS=false
 fi
 
@@ -225,7 +232,8 @@ IP_ADDRESSES=$(hostname -I)
 
 for ip in $IP_ADDRESSES; do
     myself=$(govc find / -type m -guest.ipAddress $ip)
-    vm_id=$(govc vm.info -json "$myself" | jq -r ".virtualMachines[0].self.value" | tr -d '"')
+    myself_json=$(govc vm.info -json "$myself")
+    vm_id=$(echo $myself_json | jq -r ".virtualMachines[0].self.value" | tr -d '"')
     if [[ ! -z "$myself" ]]; then
         echo -e "Found myself at \033[35m$myself\033[0m (id: \033[35m$vm_id\033[0m) with IP address \033[35m$ip\033[0m"
         break
@@ -238,6 +246,51 @@ if [[ -z "$myself" ]]; then
     exit 1
 fi
 
+echo -e "\nChecking hardware version"
+vm_hwversion=$(echo $myself_json | jq -r '.virtualMachines[0].guest.hwVersion | ltrimstr("vmx-")')
+
+HARDWARE_CHECK_FAIL=false
+
+if [[ $vm_hwversion -lt 15 ]]; then
+    echo -e "\033[31mError:\e[0m My hardware version is \033[35mvmx-$vm_hwversion\033[0m but the minimum required is \033[35mvmx-15\033[0m. Please upgrade me and try again." 
+    HARDWARE_CHECK_FAIL=true
+else
+    echo -e "\033[32mHardware version is OK\033[0m (\033[35mvmx-$vm_hwversion\033[0m)"
+fi
+
+echo -e "\nChecking SCSI controllers"
+paravirtual_scsi_installed=$(echo $myself_json | jq -e 'any(.virtualMachines[].config.hardware.device[]; .deviceInfo.summary | test("VMware paravirtual SCSI"))')
+
+if [[ $paravirtual_scsi_installed = false ]]; then
+    echo -e "\033[31mError:\e[0m I do not have a SCSI controller of type \033[35mVMware Paravirtual\033[0m. Please change my SCSI controller type or install a new controller then try again." 
+    HARDWARE_CHECK_FAIL=true
+else 
+  echo -e "\033[32mSCSI controller is OK\033[0m (\033[35mVMware Paravirtual\033[0m)"
+fi
+
+echo -e "\nConfiguring \033[35mdisk.EnableUUID\033[0m setting"
+enableUUID=$(echo $myself_json | jq -r '.virtualMachines[].config.extraConfig[] | select(.key=="disk.EnableUUID").value')
+
+if [ "$enableUUID" = "TRUE" ]; then
+    echo -e "\033[32mSetting is already enabled.\033[0m"
+else
+    govc vm.change -vm "$myself" -e="disk.EnableUUID=TRUE"
+    if [[ $? -ne 0 ]]; then
+        echo -e "\033[31mError:\033[0m Failed to configure disk.EnableUUID setting."
+        echo -e "       Please set this manually via the vSphere client and try again."
+        HARDWARE_CHECK_FAIL=true
+    else
+        echo -e "\033[32mSuccessfully configured disk.EnableUUID setting.\033[0m"
+    fi
+fi
+
+if [[ $CONTINUE_ON_HARDWARE_ERROR = false && $HARDWARE_CHECK_FAIL = true ]]; then
+  echo -e "\n\033[31mExiting due to one or more failed hardware checks.\033[0m"
+  exit 1
+fi
+
+echo -e "\nChecking Tags and Tag Categories"
+
 declare -A myTags
 
 tags_json=$(govc tags.ls -json)
@@ -249,25 +302,10 @@ for ((i=0; i<tag_count; i++)); do
   tag_category=$(echo "$tags_json" | jq -r ".[$i].category_id")  
   vm_tag_index=$(govc tags.attached.ls -json "$tag_id" | jq ". | index(\"VirtualMachine:$vm_id\")")
   if [[ $vm_tag_index != "null" ]]; then
-    echo -e "Found tag: \033[35m$tag_category\033[0m = \033[34m$tag_name\033[0m"
+    echo -e "\033[32mFound tag: \033[35m$tag_category\033[0m = \033[34m$tag_name\033[0m"
     myTags["$tag_category"]="$tag_name"
   fi
 done
-
-echo -e "\nConfiguring \033[35mdisk.EnableUUID\033[0m setting"
-enableUUID=$(govc vm.info -vm.ipath "$myself" -json  | jq -r '.virtualMachines[].config.extraConfig[] | select(.key=="disk.EnableUUID").value')
-
-if [ "$enableUUID" = "TRUE" ]; then
-    echo -e "\033[32mSetting is already enabled.\033[0m"
-else
-    govc vm.change -vm "$myself" -e="disk.EnableUUID=TRUE"
-    if [[ $? -ne 0 ]]; then
-        echo -e "\033[31mError:\033[0m Failed to configure disk.EnableUUID setting."
-        echo -e "       Please set this manually via the vSphere client."
-    else
-        echo -e "\033[32mSuccessfully configured disk.EnableUUID setting.\033[0m"
-    fi
-fi
 
 # Configure tags for VMware vSphere CPI Driver
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
