@@ -278,57 +278,34 @@ echo -e "\033[32mInstalling prerequisites\033[0m"
 apt-get update -qq $APT_LOCK
 apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
 
-# Add Docker Repository https://docs.docker.com/engine/install/ubuntu/
+# Install containerd https://github.com/containerd/containerd/blob/main/docs/getting-started.md
 
-export KEYRINGS_DIR="/etc/apt/keyrings"
-
-if [ ! -d $KEYRINGS_DIR ]; then
-  mkdir -m 0755 -p $KEYRINGS_DIR
-fi
-
-if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
-  echo -e "\033[32mAdding Docker repository\033[0m"
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o $KEYRINGS_DIR/docker.gpg
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=$KEYRINGS_DIR/docker.gpg] https://download.docker.com/linux/ubuntu \
-    $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-fi
-
-# Install Docker https://docs.docker.com/engine/install/ubuntu/
-
-echo -e "\033[32mInstalling Docker\033[0m"
-
-sleep 1 # Sleep for a second in case of file locks
+echo -e "\033[32mInstalling containerd\033[0m"
 
 apt-get update -qq $APT_LOCK
-apt-get install -qqy $APT_LOCK docker-ce docker-ce-cli
-
-tee /etc/docker/daemon.json >/dev/null <<EOF
-{
-  "exec-opts": ["native.cgroupdriver=systemd"],
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "100m"
-  },
-  "storage-driver": "overlay2"
-}
-EOF
-
-mkdir -p /etc/systemd/system/docker.service.d
+apt-get install -qqy $APT_LOCK containerd
 
 # Replace default config file to enable CRI plugin and SystemdCgroup
 # https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd-systemd
-tee /etc/containerd/config.toml >/dev/null <<EOF
+
+mkdir /etc/containerd
+
+cat <<EOF > /etc/containerd/config.toml
 version = 2
+
+[plugins."io.containerd.grpc.v1.cri".containerd]
+snapshotter = "overlayfs"
 
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
 runtime_type = "io.containerd.runc.v2"
 
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
 SystemdCgroup = true
+
 EOF
 
 systemctl daemon-reload
-systemctl restart docker
+systemctl enable --now containerd
 systemctl restart containerd
 
 # Install Kubernetes https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
@@ -370,6 +347,12 @@ else
 fi
 
 # Add Kubernetes Repository
+
+export KEYRINGS_DIR="/etc/apt/keyrings"
+
+if [ ! -d $KEYRINGS_DIR ]; then
+  mkdir -m 0755 -p $KEYRINGS_DIR
+fi
 
 if [ -f /etc/apt/sources.list.d/kubernetes.list ]; then
   rm $KEYRINGS_DIR/kubernetes-apt-keyring.gpg
