@@ -156,7 +156,7 @@ Example Usage - Additional `kubeadm init` Options
     --k8s-kubeadm-options "--ignore-preflight-errors=all" \
     --k8s-load-balancer-ip-range 192.168.0.1/24
 ```
-> **IMPORTANT:**
+> [!IMPORTANT]
 > - **Do not** include `--apiserver-advertise-address`, `--pod-network-cidr` or `--service-cidr` as these are already set in the script. 
 > - **Do not** include `--config` as this conflicts with the above. You should instead use `--k8s-kubeadm-config` to pass in your config file.
 > - Note that `--k8s-kubeadm-config` and `--k8s-kubeadm-options` used together may cause errors during initialization.
@@ -172,7 +172,8 @@ Example Usage - Kubeadm Config File
     --k8s-kubeadm-config /path/to/config.yaml \
     --k8s-load-balancer-ip-range 192.168.0.1/24
 ```
-> **NOTE:**<br>
+> [!NOTE]
+>
 > The following parameters cannot be used when providing a kubeadm config file and should instead be set in the config file itself:
 > - `--k8s-cluster-name`
 > - `--k8s-version`
@@ -227,7 +228,8 @@ With PAT token:
 ```
 This requires creating a PAT token at https://github.com/settings/personal-access-tokens.<br>Make sure the token has permissions to read and write content over your repo.
 
-> **NOTE:**<br>
+> [!NOTE]
+>
 > Autok8s will automatically choose a directory name for your cluster as `clusters/<cluster_name>` where `<cluster_name>` is taken from `--k8s-cluster-name` if specified or the local hostname if not.
 >
 > You can override this behavior by passing the full directory with `--flux-git-path clusters/mycluster`.
@@ -250,6 +252,7 @@ Example Usage - All:
     --k8s-cni cilium \
     --k8s-allow-master-node-schedule true \
     --k8s-kubeadm-options "--ignore-preflight-errors=all" \
+    --k8s-cloud-provider external \
     --nfs-install-server true \
     --nfs-server srv-k8s-master.domain1.local \
     --nfs-share-path /some/path/nfs \

@@ -52,6 +52,7 @@ Example Usage - Additional kubeadm join options
 ./setup_master_node.sh \  
     --k8s-kubeadm-options "--ignore-preflight-errors=all" 
 ```
+> [!NOTE]
 > Available options for `kubeadm join` [here](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/). <br> **Do not** include `--token` or `--discovery-token-ca-cert-hash` as these are already set in the script.
 
 <br>
