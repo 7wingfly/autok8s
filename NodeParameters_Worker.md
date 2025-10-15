@@ -71,6 +71,7 @@ Example Usage - All:
     --k8s-master-ip 192.168.0.230 \
     --k8s-master-port 6443 \
     --k8s-kubeadm-options "--ignore-preflight-errors=all" \
+    --k8s-cloud-provider external \
     --token fbdzi9.5yedbdve20r \
     --discovery-token-ca-cert-hash sha256:68d0860434a20c9eb533b640f23134c0fdacc4b929e97c8f8e537f9b4befabb2 
 ```

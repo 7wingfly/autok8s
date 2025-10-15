@@ -159,7 +159,7 @@ Example Usage - Additional `kubeadm init` Options
 > [!IMPORTANT]
 > - **Do not** include `--apiserver-advertise-address`, `--pod-network-cidr` or `--service-cidr` as these are already set in the script. 
 > - **Do not** include `--config` as this conflicts with the above. You should instead use `--k8s-kubeadm-config` to pass in your config file.
-> - Note that `--k8s-kubeadm-config` and `--k8s-kubeadm-options` used together may cause errors during initialization.
+> - Note that `--k8s-kubeadm-config` and `--k8s-kubeadm-options` when used together may cause errors during initialization.
 >
 > Available options for `kubeadm init` [here](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/).
 
@@ -193,6 +193,7 @@ Example Usage - Kubernetes CNI
     --k8s-cni cilium \
     --k8s-load-balancer-ip-range 192.168.0.1/24
 ```
+> [!TIP] 
 > Currently the options are `flannel`, `cilium` or `none`. If you choose `none`, MetalLB will also be skipped, and your control-plane node will be in a `NotReady` state until you install your own CNI.
 
 <br>
