@@ -23,6 +23,7 @@ Parameter values which are wrapped in quotes must include the quotes when applie
 |`--k8s-allow-master-node-schedule`|Set to `true` to allow master node to schedule pods.|`true`|`false`|No|
 |`--k8s-kubeadm-options`|Additional options to pass into the `kubeadm init` command.|-|`"--ignore-preflight-errors=all"`|No|
 |`--k8s-kubeadm-config`|Kubeadm config file to pass into `kubeadm init --config <file>`.|-|`"/path/to/config.yaml"`|No|
+|`--k8s-cloud-provider`|Sets kubelet cloud-provider mode. Set to `external` for CCMs.|-|`external`|Recommended for VMware CPI driver. See [here](/vmware/README.md).|
 |`--nfs-install-server`|Set to `true` to install NFS server.|`true`|`false`|No|
 |`--nfs-server`|The NFS server to use.|`$HOSTNAME`|`192.168.0.100`|When `--nfs-install-server` is `true`|
 |`--nfs-share-path`|The NFS share path to use.|`/shares/nfs`|`/mnt/nfs`|When `--nfs-install-server` is `true`|
@@ -77,6 +78,7 @@ If you add more than 3 DNS servers to the host TCP/IP settings, Kubernetes will 
 ## Parameter Examples
 
 <br>
+
 Example Usage - Minimum Required:
 
 ```bash
@@ -92,6 +94,7 @@ Example Usage - Minimum Required:
 ```
 
 <br>
+
 Example Usage - TCP/IP Setup:
 
 ```bash

@@ -22,6 +22,7 @@ Parameters that have default values but are marked as required can still be ommi
 |`--k8s-master-port`|The Kubernetes API server port on the control-plane node.|`6443`|`6443`|Yes|
 |`--k8s-kubeadm-options`|Additional options to pass into the `kubeadm join` command.|-|`"--ignore-preflight-errors=all"`|No|
 |`--token`|The `token` portion of the `kubeadm join` command.|-|`kspnlk.7h[..]3f`|Yes|
+|`--k8s-cloud-provider`|Sets kubelet cloud-provider mode. Set to `external` for CCMs.|-|`external`|Recommended for VMware CPI driver. See [here](/vmware/README.md).|
 |`--discovery-token-ca-cert-hash`|The `discovery-token-ca-cert-hash` portion of the `kubeadm join` command.|-|`sha256:68d[..]bb2`|Yes|
 
 <br>

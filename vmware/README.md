@@ -105,7 +105,7 @@ In order to use the CSI and CPI drivers you must meet the following requirements
  
 See more about compatibility and requirements [here](https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/container-storage-plugin/3-0/getting-started-with-vmware-vsphere-container-storage-plug-in-3-0/vsphere-container-storage-plug-in-concepts/compatibility-matrix-for-vsphere-container-storage-plug-in.html) and [here](https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/container-storage-plugin/3-0/getting-started-with-vmware-vsphere-container-storage-plug-in-3-0/vsphere-container-storage-plug-in-deployment/preparing-for-installation-of-vsphere-container-storage-plug-in.html?utm_source).
 
-> **NOTE:**<br>
+> [!NOTE]
 > If you have not yet created your Kubernetes cluster and you intend to install the CPI drivers post-installation, it is highly recommended that you include the argument `--k8s-cloud-provider external` when running the master and worker node scripts. 
 >
 > This will apply extra kubelet arguments (affecting how Kubernetes is configured), apply the taint required by the CCM (vSphere CPI), and include taint tolerations on CoreDNS, the CNI, MetalLB, SMB and NFS CSI drivers, and other core components.
