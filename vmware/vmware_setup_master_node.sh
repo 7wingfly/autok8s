@@ -28,7 +28,7 @@ export VSPHERE_CPI_TAG_CATEGORY_ZONE="k8s-zone"
 export VSPHERE_CPI_TAG_REGION=""
 export VSPHERE_CPI_TAG_ZONE=""
 export VSPHERE_CPI_CREATE_TAGS="true"
-export VSPHERE_CPI_CONFIG_FILE=""
+export VSPHERE_CPI_CONFIG=""
 export CONTINUE_ON_HARDWARE_ERROR=false
 
 # ------------------------------
@@ -55,7 +55,7 @@ while [[ $# -gt 0 ]]; do
         --vsphere-cpi-tag-region) VSPHERE_CPI_TAG_REGION="$2"; shift; shift;;
         --vsphere-cpi-tag-zone) VSPHERE_CPI_TAG_ZONE="$2"; shift; shift;;
         --vsphere-cpi-create-tags) VSPHERE_CPI_CREATE_TAGS="$2"; shift; shift;;
-        --vsphere-cpi-config-file) VSPHERE_CPI_CONFIG_FILE="$2"; shift; shift;;
+        --vsphere-cpi-config) VSPHERE_CPI_CONFIG="$2"; shift; shift;;
         --continue-on-hardware-error) CONTINUE_ON_HARDWARE_ERROR="$2"; shift; shift;;
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
     esac
@@ -112,8 +112,8 @@ if [[ -z "$STORAGE_CLASS_NAME_PREFIX" ]]; then
     PARAM_CHECK_PASS=false
 fi
 
-if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && ! -f "$VSPHERE_CPI_CONFIG_FILE" ]]; then
-    echo -e "\e[31mError:\e[0m The file \e[35m$VSPHERE_CPI_CONFIG_FILE\e[0m specfied for \e[35m--vsphere-cpi-config-file\e[0m does not exist.\e[0m"
+if [[ ! -z "$VSPHERE_CPI_CONFIG" && ! -f "$VSPHERE_CPI_CONFIG" ]]; then
+    echo -e "\e[31mError:\e[0m The file \e[35m$VSPHERE_CPI_CONFIG\e[0m specfied for \e[35m--vsphere-cpi-config\e[0m does not exist.\e[0m"
     PARAM_CHECK_PASS=false  
 fi
 
@@ -137,23 +137,23 @@ if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_ZONE" && "$VSPHERE_CPI_TAG_CATEGORY_ZONE" 
     PARAM_CHECK_PASS=false
 fi
 
-if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && ! -z "$VSPHERE_CPI_TAG_REGION" ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config-file\e[0m and \e[35m--vsphere-cpi-tag-region\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+if [[ ! -z "$VSPHERE_CPI_CONFIG" && ! -z "$VSPHERE_CPI_TAG_REGION" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config\e[0m and \e[35m--vsphere-cpi-tag-region\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
   PARAM_CHECK_PASS=false
 fi
 
-if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && ! -z "$VSPHERE_CPI_TAG_ZONE" ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config-file\e[0m and \e[35m--vsphere-cpi-tag-zone\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+if [[ ! -z "$VSPHERE_CPI_CONFIG" && ! -z "$VSPHERE_CPI_TAG_ZONE" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config\e[0m and \e[35m--vsphere-cpi-tag-zone\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
   PARAM_CHECK_PASS=false
 fi
 
-if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && "$VSPHERE_CPI_TAG_CATEGORY_REGION" != "k8s-region" ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config-file\e[0m and \e[35m--vsphere-cpi-tag-category-region\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+if [[ ! -z "$VSPHERE_CPI_CONFIG" && "$VSPHERE_CPI_TAG_CATEGORY_REGION" != "k8s-region" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config\e[0m and \e[35m--vsphere-cpi-tag-category-region\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
   PARAM_CHECK_PASS=false
 fi
 
-if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && "$VSPHERE_CPI_TAG_CATEGORY_ZONE" != "k8s-zone" ]]; then
-  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config-file\e[0m and \e[35m--vsphere-cpi-tag-category-zone\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+if [[ ! -z "$VSPHERE_CPI_CONFIG" && "$VSPHERE_CPI_TAG_CATEGORY_ZONE" != "k8s-zone" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config\e[0m and \e[35m--vsphere-cpi-tag-category-zone\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
   PARAM_CHECK_PASS=false
 fi
 
@@ -621,7 +621,7 @@ if [[ $INSTALL_VSPHERE_CPI_DRIVER == true ]]; then
 
   # Create vSphere cloud configmap and secret  
 
-  if [[ -z "$VSPHERE_CPI_CONFIG_FILE" ]]; then
+  if [[ -z "$VSPHERE_CPI_CONFIG" ]]; then
     echo -e "\n\033[36mGenerate vSphere config\033[0m"
 
     export VMWARE_SECRET_NAME="vsphere-cloud-secret"
@@ -657,8 +657,8 @@ labels: {}
       fi
     fi
   else
-    echo -e "\nUsing provided vSphere CPI config file: \033[35m$VSPHERE_CPI_CONFIG_FILE\033[0m"
-    VSPHERE_CONF=$(cat $VSPHERE_CPI_CONFIG_FILE)
+    echo -e "\nUsing provided vSphere CPI config file: \033[35m$VSPHERE_CPI_CONFIG\033[0m"
+    VSPHERE_CONF=$(cat $VSPHERE_CPI_CONFIG)
   fi
 
   echo -e "\n\033[36mCreate vSphere cloud configmap and secret\033[0m"
