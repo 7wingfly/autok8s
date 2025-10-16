@@ -224,7 +224,7 @@ else
     echo -e "         $user_details"
 fi
 
-echo -e "\n\033[36mUpdate VM settings in vSphere\033[0m"
+echo -e "\n\033[36mCheck VM settings in vSphere\033[0m"
 
 echo "Searching for my own virtual machine in vSphere"
 
