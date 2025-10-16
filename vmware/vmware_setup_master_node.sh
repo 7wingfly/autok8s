@@ -619,15 +619,15 @@ function check_tag() {
 if [[ $INSTALL_VSPHERE_CPI_DRIVER == true ]]; then 
   echo -e "\033[36mInstall VMware CPI driver\033[0m"
 
-  # Create vSphere cloud configmap and secret  
+  # Create vSphere cloud configmap and secret
+
+  export VMWARE_SECRET_NAME="vsphere-cloud-secret"
+  export VMWARE_CPI_NAMESPACE="vmware-system-cpi"
+  export SECRET_FILE="$VMWARE_SECRET_NAME.yaml"
+  export CONFIGMAP_FILE="vsphere-cloud-config.yaml"
 
   if [[ -z "$VSPHERE_CPI_CONFIG" ]]; then
     echo -e "\n\033[36mGenerate vSphere config\033[0m"
-
-    export VMWARE_SECRET_NAME="vsphere-cloud-secret"
-    export VMWARE_CPI_NAMESPACE="vmware-system-cpi"
-    export SECRET_FILE="$VMWARE_SECRET_NAME.yaml"
-    export CONFIGMAP_FILE="vsphere-cloud-config.yaml"
 
     export VSPHERE_CONF="
 global:
