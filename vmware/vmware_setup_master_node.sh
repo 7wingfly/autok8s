@@ -137,6 +137,26 @@ if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_ZONE" && "$VSPHERE_CPI_TAG_CATEGORY_ZONE" 
     PARAM_CHECK_PASS=false
 fi
 
+if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && ! -z "$VSPHERE_CPI_TAG_REGION" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config-file\e[0m and \e[35m--vsphere-cpi-tag-region\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && ! -z "$VSPHERE_CPI_TAG_ZONE" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config-file\e[0m and \e[35m--vsphere-cpi-tag-zone\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && "$VSPHERE_CPI_TAG_CATEGORY_REGION" != "k8s-region" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config-file\e[0m and \e[35m--vsphere-cpi-tag-category-region\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$VSPHERE_CPI_CONFIG_FILE" && "$VSPHERE_CPI_TAG_CATEGORY_ZONE" != "k8s-zone" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-config-file\e[0m and \e[35m--vsphere-cpi-tag-category-zone\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
 if [[ ! "$CONTINUE_ON_HARDWARE_ERROR" =~ ^(true|false)$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--continue-on-hardware-error\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mfalse\e[0m)"
     PARAM_CHECK_PASS=false
