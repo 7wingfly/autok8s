@@ -21,6 +21,7 @@ Parameters that have default values but are marked as required can still be ommi
 |`--k8s-master-ip`|The IP address of the control-plane node.|-|`192.168.0.10`|Yes|
 |`--k8s-master-port`|The Kubernetes API server port on the control-plane node.|`6443`|`6443`|Yes|
 |`--k8s-kubeadm-options`|Additional options to pass into the `kubeadm join` command.|-|`"--ignore-preflight-errors=all"`|No|
+|`--k8s-kubeadm-config`|Kubeadm config file to pass into `kubeadm join --config <file>`.|-|`"/path/to/config.yaml"`|No|
 |`--token`|The `token` portion of the `kubeadm join` command.|-|`kspnlk.7h[..]3f`|Yes|
 |`--k8s-cloud-provider`|Sets kubelet cloud-provider mode. Set to `external` for CCMs.|-|`external`|Recommended for VMware CPI driver. See [here](/vmware/README.md).|
 |`--discovery-token-ca-cert-hash`|The `discovery-token-ca-cert-hash` portion of the `kubeadm join` command.|-|`sha256:68d[..]bb2`|Yes|
@@ -53,7 +54,10 @@ Example Usage - Additional kubeadm join options
     --k8s-kubeadm-options "--ignore-preflight-errors=all" 
 ```
 > [!NOTE]
-> Available options for `kubeadm join` [here](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/). <br> **Do not** include `--token` or `--discovery-token-ca-cert-hash` as these are already set in the script.
+>
+> Note that `--k8s-kubeadm-config` and `--k8s-kubeadm-options` when used together may cause errors during initialization.
+>
+> Available options for `kubeadm join` [here](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/).<br> **Do not** include `--token` or `--discovery-token-ca-cert-hash` as these are already set in the script.
 
 <br>
 
@@ -71,6 +75,7 @@ Example Usage - All:
     --k8s-master-ip 192.168.0.230 \
     --k8s-master-port 6443 \
     --k8s-kubeadm-options "--ignore-preflight-errors=all" \
+    --k8s-kubeadm-config "/path/to/config.yaml" \
     --k8s-cloud-provider external \
     --token fbdzi9.5yedbdve20r \
     --discovery-token-ca-cert-hash sha256:68d0860434a20c9eb533b640f23134c0fdacc4b929e97c8f8e537f9b4befabb2 

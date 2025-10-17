@@ -28,9 +28,9 @@ Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
 - Installs prerequisite packages such as `apt-transport-https`, `ca-certificates`, etc.  
 
-- Adds Docker and Kubernetes repositories.
+- Installs containerd, then applies required configuration for Kubernetes.
 
-- Installs Docker CE and containerd, then applies required configuration for Kubernetes.
+- Adds Kubernetes community repositories.
 
 - Installs Kubernetes packages.
 
@@ -72,9 +72,9 @@ Here's a high-level overview of the steps `setup_worker_node.sh` will perform:
 
 - Installs prerequisite packages such as `apt-transport-https`, `ca-certificates`, etc.  
 
-- Adds Docker and Kubernetes repositories.
+- Installs containerd, then applies required configuration for Kubernetes.
 
-- Installs Docker CE and containerd, then applies required configuration for Kubernetes.
+- Adds Kubernetes community repositories.
 
 - Installs Kubernetes packages.
 
@@ -140,10 +140,6 @@ Lastly, run the `cat ~/.kube/config` command on the control-plane node, copy the
 ## Links
 
 Links to documentation used to create this project:
-
-Docker install docs:
-<br>
-https://docs.docker.com/engine/install/ubuntu
 
 Containerd config:
 <br>

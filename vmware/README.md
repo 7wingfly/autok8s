@@ -1,6 +1,6 @@
 # <t style="color: #dd54ffff">Auto</t><t style="color: #49aeddff">k8s</t> | VMware Setup
 
-The Autok8s VMware Setup scripts included in this directory aim to automate the installation and configuration of VMware vSphere CSI ([Container Storage Interface](https://kubernetes.io/blog/2019/01/15/container-storage-interface-ga/)) and CPI ([Cloud Provider Interface](https://cloud-provider-vsphere.sigs.k8s.io/cloud_provider_interface.html); a [CCM](https://kubernetes.io/docs/concepts/architecture/cloud-controller/)) on an existing Kubernetes cluster running in a VMware vSphere environment. 
+The Autok8s VMware Setup scripts included in this directory aim to automate the installation and configuration of VMware vSphere CSI ([Container Storage Interface](https://kubernetes.io/blog/2019/01/15/container-storage-interface-ga/)) and CPI ([Cloud Provider Interface](https://cloud-provider-vsphere.sigs.k8s.io/cloud_provider_interface.html); a [CCM](https://kubernetes.io/docs/concepts/architecture/cloud-controller/)) on an existing Kubernetes cluster running in a VMware vSphere environment.
 
 ---
 
@@ -69,7 +69,8 @@ Here's a high-level overview of the steps `vmware_setup_master_node.sh` will per
 - Taints all nodes with `node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule`<br> (The CPI driver will only update nodes with this taint).
 
 ### Worker Node VMware Script:
-The worker script is not a technical requirement for a successful deployment of the CSI or CPI drivers; it simply checks and configures the VM with the correct settings and tags if not already set up. If your VMs already meet the requirements, you may ignore this script.
+
+The worker script is not required for a successful deployment of the CSI or CPI drivers to the cluster; its purpose is to check and configure the VMs with the correct settings and tags if not already set up. If your VMs already meet the requirements, you can skip this script.
 
 Here's a high-level overview of the steps `vmware_setup_worker_node.sh` will perform:
 
@@ -110,7 +111,10 @@ See more about compatibility and requirements [here](https://techdocs.broadcom.c
 >
 > This will apply extra kubelet arguments (affecting how Kubernetes is configured), apply the taint required by the CCM (vSphere CPI), and include taint tolerations on CoreDNS, the CNI, MetalLB, SMB and NFS CSI drivers, and other core components.
 
+It's recommended to read the VMware Master Node Parameters [document](https://github.com/7wingfly/autok8s/tree/main/vmware/VMwareParameters_Master.md) for details on all available parameters before you begin.
+
 ## Go Time!
+
 You can run the `vmware_setup_master_node.sh` script in one of two ways. Download or copy & paste the script directly from [here](https://raw.githubusercontent.com/7wingfly/autok8s/main/vmware/vmware_setup_master_node.sh), give it execute permissions and run it as `sudo`.
 
 ```
