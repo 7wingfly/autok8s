@@ -1,7 +1,7 @@
 # VMware Master Parameters
-The following is a list of all available parameters you can use with the `vmware_setup_master_node.sh` script. Below that are some examples that can help you get started and some notes on things to watch out for when setting some of the parameter values. 
+The following is a list of all available parameters you can use with the `vmware_setup_master_node.sh` script. Below are examples and notes to help you get started and to highlight things to watch for when setting some parameter values.
 
-Parameter values which are wrapped in quotes must include the quotes when applied.
+Parameter values wrapped in quotes must include the quotes when used.
 <br>
 <br>
 
@@ -30,11 +30,11 @@ Parameter values which are wrapped in quotes must include the quotes when applie
 
 ### VMware Datastores & K8s Storage Classes
 
-The script will install the CSI driver, and then automatically create two Storage Classes for each datastore found in the specified Datacenter, one with a `delete` retention policy and another with `retain`. If you want to specify the datastore(s) for which Storage Classes should be created, you can do so with the `--vcenter-datastores` parameter which takes a comma separate list of datastore names.
+The script will install the CSI driver and then automatically create two StorageClasses for each datastore found in the specified Datacenter: one with a `delete` retention policy and another with `retain`. If you want to specify the datastore(s) for which StorageClasses should be created, you can do so with the `--vcenter-datastores` parameter, which takes a comma-separated list of datastore names.
 
-The Storage Class names are generated automatically in the format `<prefix>-<datastore_name>-<retention_policy>`. The prefix can be set via the `--storage-class-name-prefix` parameter and has a default value of `vsphere-csi`. If a datastore name contains characters not supported by Kubernetes it will be sanitized before creation.
+The StorageClass names are generated automatically in the format `<prefix>-<datastore_name>-<retention_policy>`. The prefix can be set via the `--storage-class-name-prefix` parameter and has a default value of `vsphere-csi`. If a datastore name contains characters not supported by Kubernetes, it will be sanitized before creation.
 
-For example a datastore named `SAN Datastore1` will result in the following Storage Classes
+For example, a datastore named `SAN Datastore1` will result in the following StorageClasses:
 ```
 vsphere-csi-san-datastore1-retain
 vsphere-csi-san-datastore1-delete
@@ -42,13 +42,13 @@ vsphere-csi-san-datastore1-delete
 
 ### VMware Tags & K8s Labels
 
-The script will ensure that the requested tags are always applied. If the requested tag and/or tag categories do not exist in VMware, they will be created. If different tags belonging to the same tag category are present, these will be removed before creating and adding the requested ones. You can disable tag creation with the `--vsphere-cpi-create-tags false` parameter.
+The script ensures that the requested tags are applied. If the requested tag and/or tag categories do not exist in VMware, they will be created. If different tags belonging to the same tag category are present, those tags will be removed before creating and adding the requested ones. You can disable tag creation with the `--vsphere-cpi-create-tags false` parameter.
 
-If you do not specify a value for `--vsphere-cpi-tag-region` or `--vsphere-cpi-tag-zone`, the script will not be able to assign tags and will only check for the presence of tags which belong to the specified tag categories (`k8s-region` and `k8s-zone` by default). This is not an issue if you are managing tags through some other process such as Terraform.
+If you do not specify a value for `--vsphere-cpi-tag-region` or `--vsphere-cpi-tag-zone`, the script will not be able to assign tags and will only check for the presence of tags that belong to the specified tag categories (`k8s-region` and `k8s-zone` by default). This is not an issue if you manage tags through another process, such as Terraform.
 
 > [!CAUTION]
 >
-> If there are no tags on the VM(s) belonging to categories defined in the `labels` section of the vSphere ConfigMap `cloud-config` (see more below), the CPI driver will be unable to complete the initialization of the node and it will remain tainted. 
+> If no tags exist on the VM(s) in the categories defined in the `labels` section of the vSphere ConfigMap `cloud-config` (see below), the CPI driver cannot complete node initialization and the node will remain tainted.
 >
 > For example, if you specify the tag category `k8s-zone`, VMs **must** have a tag belonging to this category for successful initialization.
 
@@ -56,7 +56,7 @@ If you do not specify a value for `--vsphere-cpi-tag-region` or `--vsphere-cpi-t
 
 <br>
 
-Example Usage - Minimum Required:
+Example Usage — Minimum Required:
 
 ```bash
 ./vmware_setup_master_node.sh \
@@ -65,7 +65,7 @@ Example Usage - Minimum Required:
 ```
 <br>
 
-Example Usage - VMware CSI Driver only:
+Example Usage — VMware CSI driver only:
 
 ```bash
 ./vmware_setup_master_node.sh \
@@ -81,7 +81,7 @@ Example Usage - VMware CSI Driver only:
 
 <br>
 
-Example Usage - VMware CSI & CPI Drivers:
+Example Usage — VMware CSI & CPI drivers:
 
 ```bash
 ./vmware_setup_master_node.sh \
@@ -100,11 +100,11 @@ Example Usage - VMware CSI & CPI Drivers:
 
 <br>
 
-Example Usage - Custom CPI config file:
+Example Usage — Custom CPI config file:
 
-You may want to provide your own `vsphere.conf` file instead of allowing the script to generate one for you. If you do this you will need to supply all of the values including the tags, which will not be checked during setup. 
+You may want to provide your own `vsphere.conf` file instead of allowing the script to generate one. If you do this, you will need to supply all of the values, including the tags, which will not be checked during setup.
 
-You will need to reference a secret containing vCenter credentials, to use the one generated by the script, use secret name `vsphere-cloud-secret` and namespace `vmware-system-cpi`. The config file will be stored in a ConfigMap called `cloud-config` also in the `vmware-system-cpi` namespace.
+You will need to reference a secret containing vCenter credentials. To use the secret generated by the script, use the secret name `vsphere-cloud-secret` and the namespace `vmware-system-cpi`. The config file will be stored in a ConfigMap called `cloud-config`, also in the `vmware-system-cpi` namespace.
 
 Below is an example `vsphere.conf` config file:
 
@@ -140,11 +140,11 @@ Reference the file when running the script:
 
 > [!TIP]
 >
-> The config file can be written as either YAML or INI interchangeably, however the examples given in the official documentation are written in INI. See: https://cloud-provider-vsphere.sigs.k8s.io/cloud_config
+> The config file can be written as either YAML or INI; however, the examples in the official documentation are written in INI. See: https://cloud-provider-vsphere.sigs.k8s.io/cloud_config
 
 <br>
 
-Example Usage - All:
+Example Usage — All:
 
 ```bash
 ./vmware_setup_master_node.sh \
