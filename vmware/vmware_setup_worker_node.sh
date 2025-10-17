@@ -9,7 +9,7 @@ echo -e '\e[35m                Version:\e[36m 1.7.0\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m VMware vSphere CSI and CPI Setup\e[0m'
 echo -e '\e[35m                                 \e[36m Worker Node Edition\e[0m\n'
 
-# Define Variables, Default Values & Parameters 
+# Define Variables, Default Values & Parameters
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
 export VCENTER_ADDR=""
@@ -56,66 +56,66 @@ export PARAM_CHECK_PASS=true
 export PARAM_CHECK_WARN=false
 
 if [[ -f "/etc/kubernetes/admin.conf" || ! -f "/etc/kubernetes/kubelet.conf" ]]; then
-    echo -e "\e[31mError:\e[0m This script must be run on a Kubernetes worker node. Please install Kubernetes first."
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m This script must be run on a Kubernetes worker node. Please install Kubernetes first."
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ ! "$VCENTER_INSECURE" =~ ^(true|false)$ ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-insecure\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mfalse\e[0m)"
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m \e[35m--vcenter-insecure\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mfalse\e[0m)"
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ -z "$VCENTER_ADDR" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-host\e[0m is required!"
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m \e[35m--vcenter-host\e[0m is required!"
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ -z "$VCENTER_USERNAME" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-username\e[0m is required! (Default: \e[35madministrator@vsphere.local\e[0m)"
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m \e[35m--vcenter-username\e[0m is required! (Default: \e[35madministrator@vsphere.local\e[0m)"
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ -z "$VCENTER_PASSWORD" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-password\e[0m is required!"
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m \e[35m--vcenter-password\e[0m is required!"
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ -z "$VCENTER_USER_GROUP" ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vcenter-user-group\e[0m is required! (Default: \e[35mAdministrators\e[0m)"
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m \e[35m--vcenter-user-group\e[0m is required! (Default: \e[35mAdministrators\e[0m)"
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ ! "$MANAGE_TAGS_FOR_VSPHERE_CPI" =~ ^(true|false)$ ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--manage-tags-for-vsphere-cpi\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m \e[35m--manage-tags-for-vsphere-cpi\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_REGION" && "$VSPHERE_CPI_TAG_CATEGORY_REGION" == *[!a-zA-Z0-9_-]* ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-tag-category-region\e[0m can only contain letters, numbers, dashes and underscores. (Default: \e[35mk8s-region\e[0m)"
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-tag-category-region\e[0m can only contain letters, numbers, dashes and underscores. (Default: \e[35mk8s-region\e[0m)"
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_ZONE" && "$VSPHERE_CPI_TAG_CATEGORY_ZONE" == *[!a-zA-Z0-9_-]* ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-tag-category-zone\e[0m can only contain letters, numbers, dashes and underscores. (Default: \e[35mk8s-zone\e[0m)"
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-tag-category-zone\e[0m can only contain letters, numbers, dashes and underscores. (Default: \e[35mk8s-zone\e[0m)"
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ ! "$VSPHERE_CPI_CREATE_TAGS" =~ ^(true|false)$ ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-create-tags\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mtrue\e[0m)"
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m \e[35m--vsphere-cpi-create-tags\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mtrue\e[0m)"
+  PARAM_CHECK_PASS=false
 fi
 
 if [[ ! "$CONTINUE_ON_HARDWARE_ERROR" =~ ^(true|false)$ ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--continue-on-hardware-error\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mfalse\e[0m)"
-    PARAM_CHECK_PASS=false
+  echo -e "\e[31mError:\e[0m \e[35m--continue-on-hardware-error\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m. (Default: \e[35mfalse\e[0m)"
+  PARAM_CHECK_PASS=false
 fi
 
 if [ $PARAM_CHECK_PASS == false ]; then
-    exit 1
+  exit 1
 fi
 
 if [ $PARAM_CHECK_WARN == true ]; then
-    sleep 10
+  sleep 10
 fi
 
 # Script Prerequisites
@@ -125,15 +125,15 @@ fi
 
 echo -e "\033[36mChecking root access\033[0m"
 
-if [ "$(id -u)" -ne 0 ]
-then
+if [ "$(id -u)" -ne 0 ]; then
   echo -e "\033[31mYou must run this script as root\033[0m"
   exit
 fi
 
 sudo -v
-while true; do  
-  sudo -nv; sleep 1m
+while true; do
+  sudo -nv
+  sleep 1m
   kill -0 $$ 2>/dev/null || exit
 done &
 
@@ -141,8 +141,8 @@ done &
 
 export NEEDSRESART_CONF="/etc/needrestart/needrestart.conf"
 
-if [ -f $NEEDSRESART_CONF ]; then 
-  echo -e "\033[36mDisabling needsrestart interactive mode\033[0m"  
+if [ -f $NEEDSRESART_CONF ]; then
+  echo -e "\033[36mDisabling needsrestart interactive mode\033[0m"
   sed -i "/#\$nrconf{restart} = 'i';/s/.*/\$nrconf{restart} = 'a';/" $NEEDSRESART_CONF
 fi
 
@@ -162,10 +162,10 @@ echo -e "\033[32mDone.\033[0m"
 
 echo -e "\n\033[36mInstall and Configure govc\033[0m"
 
-if [[ ! -f "/usr/local/bin/govc" ]]; then    
-    curl -L -o - "https://github.com/vmware/govmomi/releases/latest/download/govc_$(uname -s)_$(uname -m).tar.gz" | tar -C /usr/local/bin -xvzf - govc
+if [[ ! -f "/usr/local/bin/govc" ]]; then
+  curl -L -o - "https://github.com/vmware/govmomi/releases/latest/download/govc_$(uname -s)_$(uname -m).tar.gz" | tar -C /usr/local/bin -xvzf - govc
 else
-    echo "govc already installed"
+  echo "govc already installed"
 fi
 
 # VM Configuration
@@ -186,16 +186,16 @@ echo -e "\nChecking authentication to vCenter ..."
 user_credential_check=$(govc session.login 2>&1)
 
 if [ $? -ne 0 ]; then
-    if [[ "$user_credential_check" =~ (incorrect user name or password)|(Invalid credentials) ]]; then
-        echo -e "\n\033[31mError:\033[0m The provided vcenter credentials are incorrect!"
-        echo -e "       Please check the username and password then try again."
-    else
-        echo -e "\n\033[31mError:\033[0m An error occurred while checking the credentials!"
-        echo -e "       $user_credential_check"
-    fi
-    exit 1
+  if [[ "$user_credential_check" =~ (incorrect user name or password)|(Invalid credentials) ]]; then
+    echo -e "\n\033[31mError:\033[0m The provided vcenter credentials are incorrect!"
+    echo -e "       Please check the username and password then try again."
+  else
+    echo -e "\n\033[31mError:\033[0m An error occurred while checking the credentials!"
+    echo -e "       $user_credential_check"
+  fi
+  exit 1
 else
-    echo -e "\033[32mAuthentication successful!\033[0m"    
+  echo -e "\033[32mAuthentication successful!\033[0m"
 fi
 
 echo -e "\nChecking group membership ..."
@@ -203,25 +203,25 @@ echo -e "\nChecking group membership ..."
 export user_details=$(govc sso.user.id $VCENTER_USERNAME 2>&1)
 
 if [[ $? -eq 0 ]]; then
-    groups=$(echo "$user_details" | grep -oP 'groups=\K[^ ]+')    
-    IFS=',' read -ra group_array <<< "$groups"
-    isadmin=false
-    for group in "${group_array[@]}"; do        
-        if [[ $group == $VCENTER_USER_GROUP ]]; then
-            isadmin=true
-            break
-        fi
-    done
-    if [[ $isadmin == "true" ]]; then
-        echo -e "\033[32mThe user is in the $VCENTER_USER_GROUP group!\033[0m"
-    else
-        echo -e "\n\033[33mWarning:\033[0m The user \033[35m$VCENTER_USERNAME\033[0m is not in the \033[35m$VCENTER_USER_GROUP\033[0m group!"
-        echo -e "         Make sure that the user account has the required permissions / roles."
+  groups=$(echo "$user_details" | grep -oP 'groups=\K[^ ]+')
+  IFS=',' read -ra group_array <<<"$groups"
+  isadmin=false
+  for group in "${group_array[@]}"; do
+    if [[ $group == $VCENTER_USER_GROUP ]]; then
+      isadmin=true
+      break
     fi
-else
-    echo -e "\n\033[33mWarning:\033[0m Could not confirm the group membership for user \033[35m$VCENTER_USERNAME\033[0m!"
+  done
+  if [[ $isadmin == "true" ]]; then
+    echo -e "\033[32mThe user is in the $VCENTER_USER_GROUP group!\033[0m"
+  else
+    echo -e "\n\033[33mWarning:\033[0m The user \033[35m$VCENTER_USERNAME\033[0m is not in the \033[35m$VCENTER_USER_GROUP\033[0m group!"
     echo -e "         Make sure that the user account has the required permissions / roles."
-    echo -e "         $user_details"
+  fi
+else
+  echo -e "\n\033[33mWarning:\033[0m Could not confirm the group membership for user \033[35m$VCENTER_USERNAME\033[0m!"
+  echo -e "         Make sure that the user account has the required permissions / roles."
+  echo -e "         $user_details"
 fi
 
 echo -e "\n\033[36mCheck VM settings in vSphere\033[0m"
@@ -231,19 +231,19 @@ echo "Searching for my own virtual machine in vSphere"
 IP_ADDRESSES=$(hostname -I)
 
 for ip in $IP_ADDRESSES; do
-    myself=$(govc find / -type m -guest.ipAddress $ip)
-    myself_json=$(govc vm.info -json "$myself")
-    vm_id=$(echo $myself_json | jq -r ".virtualMachines[0].self.value" | tr -d '"')
-    if [[ ! -z "$myself" ]]; then
-        echo -e "Found myself at \033[35m$myself\033[0m (id: \033[35m$vm_id\033[0m) with IP address \033[35m$ip\033[0m"
-        break
-    fi
+  myself=$(govc find / -type m -guest.ipAddress $ip)
+  myself_json=$(govc vm.info -json "$myself")
+  vm_id=$(echo $myself_json | jq -r ".virtualMachines[0].self.value" | tr -d '"')
+  if [[ ! -z "$myself" ]]; then
+    echo -e "Found myself at \033[35m$myself\033[0m (id: \033[35m$vm_id\033[0m) with IP address \033[35m$ip\033[0m"
+    break
+  fi
 done
 
 if [[ -z "$myself" ]]; then
-    echo -e "\n\033[31mError:\e[0m I could not find myself in vSphere. Makes sure that I am actually running in vSphere and that the GOVC environment variables are correct." 
-    echo -e "       This will likely result in the CSI driver not functioning correctly!"
-    exit 1
+  echo -e "\n\033[31mError:\e[0m I could not find myself in vSphere. Makes sure that I am actually running in vSphere and that the GOVC environment variables are correct."
+  echo -e "       This will likely result in the CSI driver not functioning correctly!"
+  exit 1
 fi
 
 echo -e "\nChecking hardware version"
@@ -252,19 +252,19 @@ vm_hwversion=$(echo $myself_json | jq -r '.virtualMachines[0].guest.hwVersion | 
 HARDWARE_CHECK_FAIL=false
 
 if [[ $vm_hwversion -lt 15 ]]; then
-    echo -e "\033[31mError:\e[0m My hardware version is \033[35mvmx-$vm_hwversion\033[0m but the minimum required is \033[35mvmx-15\033[0m. Please upgrade me and try again." 
-    HARDWARE_CHECK_FAIL=true
+  echo -e "\033[31mError:\e[0m My hardware version is \033[35mvmx-$vm_hwversion\033[0m but the minimum required is \033[35mvmx-15\033[0m. Please upgrade me and try again."
+  HARDWARE_CHECK_FAIL=true
 else
-    echo -e "\033[32mHardware version is OK\033[0m (\033[35mvmx-$vm_hwversion\033[0m)"
+  echo -e "\033[32mHardware version is OK\033[0m (\033[35mvmx-$vm_hwversion\033[0m)"
 fi
 
 echo -e "\nChecking SCSI controllers"
 paravirtual_scsi_installed=$(echo $myself_json | jq -e 'any(.virtualMachines[].config.hardware.device[]; .deviceInfo.summary | test("VMware paravirtual SCSI"))')
 
 if [[ $paravirtual_scsi_installed = false ]]; then
-    echo -e "\033[31mError:\e[0m I do not have a SCSI controller of type \033[35mVMware Paravirtual\033[0m. Please change my SCSI controller type or install a new controller then try again." 
-    HARDWARE_CHECK_FAIL=true
-else 
+  echo -e "\033[31mError:\e[0m I do not have a SCSI controller of type \033[35mVMware Paravirtual\033[0m. Please change my SCSI controller type or install a new controller then try again."
+  HARDWARE_CHECK_FAIL=true
+else
   echo -e "\033[32mSCSI controller is OK\033[0m (\033[35mVMware Paravirtual\033[0m)"
 fi
 
@@ -272,16 +272,16 @@ echo -e "\nConfiguring \033[35mdisk.EnableUUID\033[0m setting"
 enableUUID=$(echo $myself_json | jq -r '.virtualMachines[].config.extraConfig[] | select(.key=="disk.EnableUUID").value')
 
 if [ "$enableUUID" = "TRUE" ]; then
-    echo -e "\033[32mSetting is already enabled.\033[0m"
+  echo -e "\033[32mSetting is already enabled.\033[0m"
 else
-    govc vm.change -vm "$myself" -e="disk.EnableUUID=TRUE"
-    if [[ $? -ne 0 ]]; then
-        echo -e "\033[31mError:\033[0m Failed to configure disk.EnableUUID setting."
-        echo -e "       Please set this manually via the vSphere client and try again."
-        HARDWARE_CHECK_FAIL=true
-    else
-        echo -e "\033[32mSuccessfully configured disk.EnableUUID setting.\033[0m"
-    fi
+  govc vm.change -vm "$myself" -e="disk.EnableUUID=TRUE"
+  if [[ $? -ne 0 ]]; then
+    echo -e "\033[31mError:\033[0m Failed to configure disk.EnableUUID setting."
+    echo -e "       Please set this manually via the vSphere client and try again."
+    HARDWARE_CHECK_FAIL=true
+  else
+    echo -e "\033[32mSuccessfully configured disk.EnableUUID setting.\033[0m"
+  fi
 fi
 
 if [[ $CONTINUE_ON_HARDWARE_ERROR = false && $HARDWARE_CHECK_FAIL = true ]]; then
@@ -296,10 +296,10 @@ declare -A myTags
 tags_json=$(govc tags.ls -json)
 tag_count=$(echo "$tags_json" | jq '. | length')
 
-for ((i=0; i<tag_count; i++)); do
+for ((i = 0; i < tag_count; i++)); do
   tag_id=$(echo "$tags_json" | jq -r ".[$i].id")
   tag_name=$(echo "$tags_json" | jq -r ".[$i].name")
-  tag_category=$(echo "$tags_json" | jq -r ".[$i].category_id")  
+  tag_category=$(echo "$tags_json" | jq -r ".[$i].category_id")
   vm_tag_index=$(govc tags.attached.ls -json "$tag_id" | jq ". | index(\"VirtualMachine:$vm_id\")")
   if [[ $vm_tag_index != "null" ]]; then
     echo -e "\033[32mFound tag: \033[35m$tag_category\033[0m = \033[34m$tag_name\033[0m"
@@ -333,15 +333,18 @@ function check_tag() {
     return 0
   fi
 
-  cat_test=$(govc tags.category.info "$category" >/dev/null 2>&1; echo $?)  
+  cat_test=$(
+    govc tags.category.info "$category" >/dev/null 2>&1
+    echo $?
+  )
 
   function show_warning() {
     if [[ ! -v myTags[$category] ]]; then
       echo -e "\n\e[33mWarning:\e[0m This virtual machine does not have a \e[35m$category\e[0m tag."
-      echo -e "         The CPI driver will not remove the taint until one has been added."  
+      echo -e "         The CPI driver will not remove the taint until one has been added."
     else
-      echo -e "\n\e[33mWarning:\e[0m This virtual machine has a \e[35m$category\e[0m tag but it is not the requested one."      
-    fi    
+      echo -e "\n\e[33mWarning:\e[0m This virtual machine has a \e[35m$category\e[0m tag but it is not the requested one."
+    fi
   }
 
   if [[ $cat_test != 0 ]]; then
@@ -353,9 +356,9 @@ function check_tag() {
         echo -e "       $cat_create_result"
         show_warning
         return 0
-      fi     
-      echo -e "\033[32mSuccess!\033[0m"    
-    else    
+      fi
+      echo -e "\033[32mSuccess!\033[0m"
+    else
       echo -e "\033[33mTag category does not exist in vSphere. Ignoring.\033[0m"
       return 1
     fi
@@ -366,14 +369,14 @@ function check_tag() {
     show_warning
     return 0
   fi
-  
+
   tag_data=$(govc tags.info -json "$tag" 2>/dev/null | jq -r ".[] | select(.category_id==\"$category\")" 2>&1)
-  
+
   if [[ $? -ne 0 || -z "$tag_data" || "$tag_data" =~ "not found" ]]; then
     tag_exists=false
   else
     tag_exists=true
-  fi  
+  fi
 
   if [[ $tag_exists == false ]]; then
     if [[ "$VSPHERE_CPI_CREATE_TAGS" == true ]]; then
@@ -386,11 +389,11 @@ function check_tag() {
         return 0
       fi
       echo -e "\033[32mSuccess!\033[0m"
-    else      
+    else
       tag_category=$(govc tags.info -json "$tag" 2>/dev/null | jq ".[].category_id" | tr '\n' ', ' | tr -d '" ' | sed 's/.$//')
-      if [[ ! -z "$tag_category" && "$tag_category" != "$category" ]]; then 
+      if [[ ! -z "$tag_category" && "$tag_category" != "$category" ]]; then
         echo -e "\033[33mThe tag was found belonging to the category(s): \033[35m$tag_category\033[0m!\033[0m"
-        show_warning 
+        show_warning
         return 0
       else
         echo -e "\033[33mTag category found but tag does not exist in vSphere!\033[0m"
@@ -415,9 +418,9 @@ function check_tag() {
   fi
 
   echo -e "\nAdding tag \033[34m$tag\033[0m"
-  
+
   tag_add_result=$(govc tags.attach -c "$category" "$tag" "$myself" 2>&1)
-  
+
   if [ $? -ne 0 ]; then
     echo -e "\n\033[31mError:\033[0m Failed to add tag \033[34m$tag\033[0m to myself."
     echo -e "       $tag_add_result"
@@ -432,14 +435,14 @@ function check_tag() {
 
 if [[ "$MANAGE_TAGS_FOR_VSPHERE_CPI" == true ]]; then
   echo -e "\n\033[36mCheck tags for vSphere CPI\033[0m"
-      
+
   if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_REGION" ]]; then
     check_tag "$VSPHERE_CPI_TAG_CATEGORY_REGION" "$VSPHERE_CPI_TAG_REGION"
   fi
 
   if [[ ! -z "$VSPHERE_CPI_TAG_CATEGORY_ZONE" ]]; then
     check_tag "$VSPHERE_CPI_TAG_CATEGORY_ZONE" "$VSPHERE_CPI_TAG_ZONE"
-  fi  
+  fi
 fi
 
 echo -e "\n\033[32mInstallation Complete!\n\033[0m"
