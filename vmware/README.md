@@ -154,6 +154,26 @@ If you are retrospectively running this script on an existing cluster where the 
 
 - If you add new nodes to the cluster, ensure you specify `--k8s-cloud-provider external` when running autok8s, or manually add the `node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule` taint to the node after it joins the cluster.
 
+## Screenshots
+
+Below are some screenshots of the various stages:
+
+Installing prerequisite tools and validating vCenter user account:
+
+![VMware Data Collection](https://pub-4dac79d0e98d4b6eaa378b38fc71cbf8.r2.dev/autok8s-vmware-readme00.png)
+
+Getting info from vCenter regarding the VM, Datacenter and Datastores:
+
+![VMware Data Collection](https://pub-4dac79d0e98d4b6eaa378b38fc71cbf8.r2.dev/autok8s-vmware-readme01.png)
+
+The creation of Kubernetes StorageClasses from the discovered Datastores: 
+
+![VMware Data Collection](https://pub-4dac79d0e98d4b6eaa378b38fc71cbf8.r2.dev/autok8s-vmware-readme02.png)
+
+Creating and applying tags for the CPI driver, plus the removal of previous tags:
+
+![VMware Data Collection](https://pub-4dac79d0e98d4b6eaa378b38fc71cbf8.r2.dev/autok8s-vmware-readme03.png)
+
 ## Links
 
 Container Storage Interface (CSI) for Kubernetes

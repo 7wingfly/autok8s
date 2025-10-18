@@ -1,5 +1,5 @@
 # VMware Worker Parameters
-The following is a list of all available parameters you can use with the `vmware_setup_worker_node.sh` script. Below are some examples to help you get started and notes on things to watch for when setting certain parameter values.
+The following is a list of all available parameters you can use with the `vmware_setup_worker_node.sh` script. Below are examples and notes to help you get started and to highlight things to watch for when setting some parameter values.
 
 Parameter values wrapped in quotes must include the quotes when used.
 <br>
@@ -28,7 +28,7 @@ This script cannot apply the taint to the VM it is running on. If you run this s
 
 If you need to manually taint a node you can do so with this command:
 
-```bash
+```
 kubectl taint <node_name> node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule
 ```
 
