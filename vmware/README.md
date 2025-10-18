@@ -1,6 +1,6 @@
 # <t style="color: #dd54ffff">Auto</t><t style="color: #49aeddff">k8s</t> | VMware Setup
 
-The Autok8s VMware Setup scripts included in this directory automate the installation and configuration of the VMware vSphere ([Container Storage Interface](https://kubernetes.io/blog/2019/01/15/container-storage-interface-ga/)) and CPI ([Cloud Provider Interface](https://cloud-provider-vsphere.sigs.k8s.io/cloud_provider_interface.html) — a [CCM](https://kubernetes.io/docs/concepts/architecture/cloud-controller/)) on an existing Kubernetes cluster running in a VMware vSphere environment.
+The Autok8s VMware Setup scripts included in this directory automate the installation and configuration of the VMware vSphere CSI ([Container Storage Interface](https://kubernetes.io/blog/2019/01/15/container-storage-interface-ga/)) and CPI ([Cloud Provider Interface](https://cloud-provider-vsphere.sigs.k8s.io/cloud_provider_interface.html) — a [CCM](https://kubernetes.io/docs/concepts/architecture/cloud-controller/)) on an existing Kubernetes cluster running in a VMware vSphere environment.
 
 ---
 
