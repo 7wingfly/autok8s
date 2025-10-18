@@ -28,9 +28,9 @@ Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
 - Installs prerequisite packages such as `apt-transport-https`, `ca-certificates`, etc.  
 
-- Adds Docker and Kubernetes repositories.
+- Installs containerd, then applies required configuration for Kubernetes.
 
-- Installs Docker CE and containerd, then applies required configuration for Kubernetes.
+- Adds Kubernetes community repositories.
 
 - Installs Kubernetes packages.
 
@@ -72,9 +72,9 @@ Here's a high-level overview of the steps `setup_worker_node.sh` will perform:
 
 - Installs prerequisite packages such as `apt-transport-https`, `ca-certificates`, etc.  
 
-- Adds Docker and Kubernetes repositories.
+- Installs containerd, then applies required configuration for Kubernetes.
 
-- Installs Docker CE and containerd, then applies required configuration for Kubernetes.
+- Adds Kubernetes community repositories.
 
 - Installs Kubernetes packages.
 
@@ -141,21 +141,17 @@ Lastly, run the `cat ~/.kube/config` command on the control-plane node, copy the
 
 Links to documentation used to create this project:
 
-Docker install docs:
-<br>
-https://docs.docker.com/engine/install/ubuntu/
-
 Containerd config:
 <br>
 https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd-systemd
 
 Kubernetes install docs:
 <br>
-https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm
 
 Kubeadm init docs:
 <br>
-https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
+https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init
 
 Flannel networking docs:
 <br>
@@ -183,7 +179,7 @@ MetalLB load balancer
 <br>
 https://metallb.universe.tf/installation/
 <br>
-https://metallb.universe.tf/configuration/_advanced_l2_configuration/
+https://metallb.universe.tf/configuration/_advanced_l2_configuration
 
 Metrics Server
 <br>
@@ -191,4 +187,4 @@ https://github.com/kubernetes-sigs/metrics-server/blob/master/README.md
 
 Flux CD
 <br>
- https://fluxcd.io/flux/cmd/flux_bootstrap_git/
+ https://fluxcd.io/flux/cmd/flux_bootstrap_git

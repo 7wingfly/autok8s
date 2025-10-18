@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.6.1\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.7.0\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Worker Node Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -53,6 +53,8 @@ export k8sMasterPort="6443"
 export k8sToken=""                                          # This and the cert hash can be found by running 'kubeadm token create --print-join-command' on the master node
 export k8sTokenDiscoveryCaCertHash=""                       
 export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm join command.
+export k8sKubeadmConfig=""                                  # Path to kubeadm config file.
+export k8sCloudProvider=""                                  # Sets the --cloud-provider argument in kubelet. Set to 'external' when using VMware CPI.
 
 # ------------------------------
 # Parameters
@@ -72,6 +74,8 @@ while [[ $# -gt 0 ]]; do
         --k8s-master-ip) k8sMasterIP="$2"; shift; shift;;
         --k8s-master-port) k8sMasterPort="$2"; shift; shift;;
         --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
+        --k8s-kubeadm-config) k8sKubeadmConfig="$2"; shift; shift;;
+        --k8s-cloud-provider) k8sCloudProvider="$2"; shift; shift;;
         --token) k8sToken="$2"; shift; shift;;
         --discovery-token-ca-cert-hash) k8sTokenDiscoveryCaCertHash="$2"; shift; shift;;
         *) echo -e "\e[31mError:\e[0m Parameter \e[35m$key\e[0m is not recognised."; exit 1;;
@@ -185,6 +189,34 @@ if [[ -z "$k8sTokenDiscoveryCaCertHash" ]]; then
   PARAM_CHECK_PASS=false
 fi
 
+if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sKubeadmOptions" ]]; then
+  echo -e "\e[33mWarning:\e[0m Using \e[35m--k8s-kubeadm-config\e[0m with \e[35m--k8s-kubeadm-options\e[0m may cause kubeadm init to fail depending on the options used.\e[0m"
+  PARAM_CHECK_WARN=true
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -f "$k8sKubeadmConfig" ]]; then
+  echo -e "\e[31mError:\e[0m The file \e[35m$k8sKubeadmConfig\e[0m specfied for \e[35m--k8s-kubeadm-config\e[0m does not exist.\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sCloudProvider" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-cloud-provider\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sCloudProvider" && "$k8sCloudProvider" != "external" ]]; then
+  echo -e "\e[33mWarning:\e[0m \e[35m--k8s-cloud-provider\e[0m should only be set to \e[35mexternal\e[0m. In-tree cloud providers have been depreciated."
+  PARAM_CHECK_WARN=true
+fi
+
+if [[ -n "$k8sCloudProvider" ]]; then
+  echo -e "\e[33mWarning:\e[0m Using \e[35m--k8s-cloud-provider\e[0m runs Kubernetes in external CCM mode and taints nodes with \e[35mnode.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule\e[0m."
+  echo -e "         Pods \e[1mwithout\e[0m a matching toleration will not schedule until a CCM (e.g. VMware CPI) is installed \e[1mor\e[0m the taint is removed."
+  echo -e "         Only use this option if you also used it on the master (control-plane) node!\n"
+  echo -e "         If you intend to use VMware CPI, check out the AutoK8s VMware scripts at https://github.com/7wingfly/autok8s/tree/main/vmware"
+  PARAM_CHECK_WARN=true  
+fi
+
 if [ $PARAM_CHECK_PASS == false ]; then
   exit 1
 fi
@@ -246,57 +278,34 @@ echo -e "\033[32mInstalling prerequisites\033[0m"
 apt-get update -qq $APT_LOCK
 apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
 
-# Add Docker Repository https://docs.docker.com/engine/install/ubuntu/
+# Install containerd https://github.com/containerd/containerd/blob/main/docs/getting-started.md
 
-export KEYRINGS_DIR="/etc/apt/keyrings"
-
-if [ ! -d $KEYRINGS_DIR ]; then
-  mkdir -m 0755 -p $KEYRINGS_DIR
-fi
-
-if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
-  echo -e "\033[32mAdding Docker repository\033[0m"
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o $KEYRINGS_DIR/docker.gpg
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=$KEYRINGS_DIR/docker.gpg] https://download.docker.com/linux/ubuntu \
-    $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-fi
-
-# Install Docker https://docs.docker.com/engine/install/ubuntu/
-
-echo -e "\033[32mInstalling Docker\033[0m"
-
-sleep 1 # Sleep for a second in case of file locks
+echo -e "\033[32mInstalling containerd\033[0m"
 
 apt-get update -qq $APT_LOCK
-apt-get install -qqy $APT_LOCK docker-ce docker-ce-cli
-
-tee /etc/docker/daemon.json >/dev/null <<EOF
-{
-  "exec-opts": ["native.cgroupdriver=systemd"],
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "100m"
-  },
-  "storage-driver": "overlay2"
-}
-EOF
-
-mkdir -p /etc/systemd/system/docker.service.d
+apt-get install -qqy $APT_LOCK containerd
 
 # Replace default config file to enable CRI plugin and SystemdCgroup
 # https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd-systemd
-tee /etc/containerd/config.toml >/dev/null <<EOF
+
+mkdir /etc/containerd
+
+cat <<EOF > /etc/containerd/config.toml
 version = 2
+
+[plugins."io.containerd.grpc.v1.cri".containerd]
+snapshotter = "overlayfs"
 
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
 runtime_type = "io.containerd.runc.v2"
 
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
 SystemdCgroup = true
+
 EOF
 
 systemctl daemon-reload
-systemctl restart docker
+systemctl enable --now containerd
 systemctl restart containerd
 
 # Install Kubernetes https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
@@ -314,7 +323,7 @@ normalize_k8s_version() {
 }
 
 pick_pkg_ver() {
-  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }'
+  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }' || true
 }
 
 if [ $k8sVersion == "latest" ]; then
@@ -338,6 +347,12 @@ else
 fi
 
 # Add Kubernetes Repository
+
+export KEYRINGS_DIR="/etc/apt/keyrings"
+
+if [ ! -d $KEYRINGS_DIR ]; then
+  mkdir -m 0755 -p $KEYRINGS_DIR
+fi
 
 if [ -f /etc/apt/sources.list.d/kubernetes.list ]; then
   rm $KEYRINGS_DIR/kubernetes-apt-keyring.gpg
@@ -416,9 +431,31 @@ fi
 
 # Join Cluster
 
+if [[ -z "$k8sKubeadmConfig" ]]; then
+  export k8sKubeadmConfig="/tmp/kubeadm-config.yaml"
+  cat <<EOF > $k8sKubeadmConfig
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: JoinConfiguration
+discovery:
+  bootstrapToken:
+    apiServerEndpoint: ${k8sMasterIP}:${k8sMasterPort}
+    token: ${k8sToken}
+    caCertHashes:
+    - ${k8sTokenDiscoveryCaCertHash}
+nodeRegistration:
+  kubeletExtraArgs:
+    cloud-provider: ${k8sCloudProvider}
+
+EOF
+fi
+
+echo -e "\033[32mValidating kubeadm config file\033[0m"
+
+kubeadm config validate --config ${k8sKubeadmConfig}
+
 echo -e "\033[32mJoining Kubernetes Cluster\033[0m"
 
-kubeadm join $k8sMasterIP:$k8sMasterPort --token $k8sToken --discovery-token-ca-cert-hash $k8sTokenDiscoveryCaCertHash $k8sKubeadmOptions
+kubeadm join --config ${k8sKubeadmConfig} ${k8sKubeadmOptions}
 
 # Print success message
 

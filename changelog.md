@@ -1,3 +1,13 @@
+## 1.7.0
+*October 17th 2025*
+
+- Add new scripts and documentation for VMware CSI and CPI drivers.
+- Add `--k8s-cloud-provider` argument in master and worker scripts to support VMware CPI driver.
+- Add support for custom kubeadm config file join worker nodes.
+- Generate kubeadm config file for worker nodes if not specified.
+- Remove docker and move to containerd only.
+- Fix bug in pick_pkg_ver which occurs only when running manually.
+- Fix line endings from CRLF to LF.
 
 ### 1.6.1
 *September 17th 2025*

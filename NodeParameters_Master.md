@@ -23,6 +23,7 @@ Parameter values which are wrapped in quotes must include the quotes when applie
 |`--k8s-allow-master-node-schedule`|Set to `true` to allow master node to schedule pods.|`true`|`false`|No|
 |`--k8s-kubeadm-options`|Additional options to pass into the `kubeadm init` command.|-|`"--ignore-preflight-errors=all"`|No|
 |`--k8s-kubeadm-config`|Kubeadm config file to pass into `kubeadm init --config <file>`.|-|`"/path/to/config.yaml"`|No|
+|`--k8s-cloud-provider`|Sets kubelet cloud-provider mode. Set to `external` for CCMs.|-|`external`|Recommended for VMware CPI driver. See [here](/vmware/README.md).|
 |`--nfs-install-server`|Set to `true` to install NFS server.|`true`|`false`|No|
 |`--nfs-server`|The NFS server to use.|`$HOSTNAME`|`192.168.0.100`|When `--nfs-install-server` is `true`|
 |`--nfs-share-path`|The NFS share path to use.|`/shares/nfs`|`/mnt/nfs`|When `--nfs-install-server` is `true`|
@@ -36,7 +37,7 @@ Parameter values which are wrapped in quotes must include the quotes when applie
 |`--smb-default-storage-class`|Set to `true` to use SMB as the default storage class.|`true`|`false`|No|
 |`--flux-install`|Set to `true` to install and bootstrap flux.|`false`|`true`|No|
 |`--flux-git-host`|The hostname of your git server.|`github.com`|`bitbucket.org`|When `--flux-install` is `true`.|
-|`--flux-git-org`|Organisation i.e. your GitHub org or username.|-|`7wingfly` or `mycorp`|When `--flux-install` is `true`.|
+|`--flux-git-org`|Organisation i.e. your GitHub org or username.|-|`7wingfly` or `Contoso`|When `--flux-install` is `true`.|
 |`--flux-git-repo`|Name of the git repo.|-|`GitOps`|When `--flux-install` is `true`.|
 |`--flux-git-branch`|Branch to work from.|`main`|`master`|When `--flux-install` is `true`.|
 |`--flux-git-path`|Directory in repo for the clusters configuration files.|`clusters/<cluster_name>` if `--k8s-cluster-name` is used otherwise `clusters/<hostname>`|`clusters/prod-ukwest-01`|No|
@@ -77,6 +78,7 @@ If you add more than 3 DNS servers to the host TCP/IP settings, Kubernetes will 
 ## Parameter Examples
 
 <br>
+
 Example Usage - Minimum Required:
 
 ```bash
@@ -92,6 +94,7 @@ Example Usage - Minimum Required:
 ```
 
 <br>
+
 Example Usage - TCP/IP Setup:
 
 ```bash
@@ -153,10 +156,11 @@ Example Usage - Additional `kubeadm init` Options
     --k8s-kubeadm-options "--ignore-preflight-errors=all" \
     --k8s-load-balancer-ip-range 192.168.0.1/24
 ```
-> **IMPORTANT:**
+> [!IMPORTANT]
+>
 > - **Do not** include `--apiserver-advertise-address`, `--pod-network-cidr` or `--service-cidr` as these are already set in the script. 
 > - **Do not** include `--config` as this conflicts with the above. You should instead use `--k8s-kubeadm-config` to pass in your config file.
-> - Note that `--k8s-kubeadm-config` and `--k8s-kubeadm-options` used together may cause errors during initialization.
+> - Note that `--k8s-kubeadm-config` and `--k8s-kubeadm-options` when used together may cause errors during initialization.
 >
 > Available options for `kubeadm init` [here](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/).
 
@@ -169,7 +173,8 @@ Example Usage - Kubeadm Config File
     --k8s-kubeadm-config /path/to/config.yaml \
     --k8s-load-balancer-ip-range 192.168.0.1/24
 ```
-> **NOTE:**<br>
+> [!NOTE]
+>
 > The following parameters cannot be used when providing a kubeadm config file and should instead be set in the config file itself:
 > - `--k8s-cluster-name`
 > - `--k8s-version`
@@ -178,7 +183,7 @@ Example Usage - Kubeadm Config File
 >
 > If the config file includes a `kubernetesVersion` field, the version will be extracted and used when installing the `kubeadm`, `kubelet` and `kubectl` packages.
 >
-> Note that using `--k8s-kubeadm-config` and `--k8s-kubeadm-options` used together may cause errors during initialization.
+> Using `--k8s-kubeadm-config` and `--k8s-kubeadm-options` used together may cause errors during initialization.
 
 <br>
 
@@ -189,7 +194,8 @@ Example Usage - Kubernetes CNI
     --k8s-cni cilium \
     --k8s-load-balancer-ip-range 192.168.0.1/24
 ```
-> Currently the options are `flannel`, `cilium` or `none`. If you choose `none`, MetalLB will also be skipped, and your control-plane node will be in a `NotReady` state until you install your own CNI.
+> [!IMPORTANT] 
+> Currently the options are `flannel`, `cilium` or `none`. If you choose `none`, MetalLB will also be skipped, and your control-plane node will be in a `NotReady` state until you install your own CNI and load balancer.
 
 <br>
 
@@ -203,7 +209,7 @@ With SSH private key file:
 ./setup_master_node.sh \
     --k8s-load-balancer-ip-range 192.168.0.1/24 \
     --flux-install true \
-    --flux-git-org MyCorp \
+    --flux-git-org Contoso \
     --flux-git-repo GitOps \
     --flux-git-auth-method ssh \
     --flux-git-ssh-private-key-file /your/private/key.pem    
@@ -215,7 +221,7 @@ With PAT token:
 ./setup_master_node.sh \
     --k8s-load-balancer-ip-range 192.168.0.1/24 \
     --flux-install true \
-    --flux-git-org MyCorp \
+    --flux-git-org Contoso \
     --flux-git-repo GitOps \
     --flux-git-auth-method https \
     --flux-git-https-use-token-auth true
@@ -224,7 +230,8 @@ With PAT token:
 ```
 This requires creating a PAT token at https://github.com/settings/personal-access-tokens.<br>Make sure the token has permissions to read and write content over your repo.
 
-> **NOTE:**<br>
+> [!NOTE]
+>
 > Autok8s will automatically choose a directory name for your cluster as `clusters/<cluster_name>` where `<cluster_name>` is taken from `--k8s-cluster-name` if specified or the local hostname if not.
 >
 > You can override this behavior by passing the full directory with `--flux-git-path clusters/mycluster`.
@@ -247,6 +254,8 @@ Example Usage - All:
     --k8s-cni cilium \
     --k8s-allow-master-node-schedule true \
     --k8s-kubeadm-options "--ignore-preflight-errors=all" \
+    --k8s-kubeadm-config "/path/to/config.yaml" \
+    --k8s-cloud-provider external \
     --nfs-install-server true \
     --nfs-server srv-k8s-master.domain1.local \
     --nfs-share-path /some/path/nfs \
@@ -259,7 +268,7 @@ Example Usage - All:
     --smb-password pass \
     --smb-default-storage-class false \
     --flux-install true \
-    --flux-git-org MyCorp \
+    --flux-git-org Contoso \
     --flux-git-repo GitOps \
     --flux-git-auth-method https \
     --flux-git-https-use-token-auth true

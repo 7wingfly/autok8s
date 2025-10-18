@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.6.1\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.7.0\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -56,6 +56,7 @@ export k8sCNI="flannel"                                     # Choose a Kubernete
 export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice if you're only going to have a single node.
 export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm init command. Do not include --config, --apiserver-advertise-address, --pod-network-cidr or --service-cidr.
 export k8sKubeadmConfig=""                                  # Path to kubeadm config file. Cannot be used with 'k8sClusterName', 'k8sPodNetworkCIDR' or 'k8sServiceCIDR'.
+export k8sCloudProvider=""                                  # Sets the --cloud-provider argument in kubelet. Set to 'external' when using VMware CPI.
 
 # ------------------------------
 # Kubernetes Storage Classes
@@ -122,6 +123,7 @@ while [[ $# -gt 0 ]]; do
         --k8s-allow-master-node-schedule) k8sAllowMasterNodeSchedule="$2"; shift; shift;;
         --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
         --k8s-kubeadm-config) k8sKubeadmConfig="$2"; shift; shift;;
+        --k8s-cloud-provider) k8sCloudProvider="$2"; shift; shift;;
         --nfs-install-server) nfsInstallServer="$2"; shift; shift;;
         --nfs-server) nfsServer="$2"; shift; shift;;
         --nfs-share-path) nfsSharePath="$2"; shift; shift;;
@@ -212,9 +214,7 @@ fi
 if [[ ! "$k8sAllowMasterNodeSchedule" =~ ^(true|false)$ ]]; then
   echo -e "\e[31mError:\e[0m \e[35m--k8s-allow-master-node-schedule\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
   PARAM_CHECK_PASS=false
-elif [[ "$k8sAllowMasterNodeSchedule" == false ]]; then
-  cnischedulewarn=""
-  if [ $k8sCNI == "cilium" ]; then cnischedulewarn=" and some Cilium pods"; fi
+elif [[ "$k8sAllowMasterNodeSchedule" == false ]]; then  
   echo -e "\e[33mWarning:\e[0m Master (control-plane) node scheduling will not be enabled. This means that non-core pods will not be scheduled until a worker node is added to the cluster."
   PARAM_CHECK_WARN=true
 fi
@@ -361,6 +361,28 @@ elif [[ ! -z "$k8sKubeadmConfig" ]]; then
       PARAM_CHECK_PASS=false
     fi
   fi
+fi
+
+if [[ ! -z "$k8sKubeadmConfig" && ! -z "$k8sCloudProvider" ]]; then
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-kubeadm-config\e[0m and \e[35m--k8s-cloud-provider\e[0m cannot be used at the same time. (Define this in your config file instead).\e[0m"
+  PARAM_CHECK_PASS=false
+fi
+
+if [[ ! -z "$k8sCloudProvider" && "$k8sCloudProvider" != "external" ]]; then
+  echo -e "\e[33mWarning:\e[0m \e[35m--k8s-cloud-provider\e[0m should only be set to \e[35mexternal\e[0m. In-tree cloud providers have been depreciated."
+  PARAM_CHECK_WARN=true
+fi
+
+if [[ -n "$k8sCloudProvider" ]]; then
+  echo -e "\e[33mWarning:\e[0m Using \e[35m--k8s-cloud-provider\e[0m runs Kubernetes in external CCM mode and taints nodes with \e[35mnode.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule\e[0m."
+  echo -e "         Pods \e[1mwithout\e[0m a matching toleration will not schedule until a CCM (e.g. VMware CPI) is installed \e[1mor\e[0m the taint is removed."    
+  echo -e "         Tolerations will be added to: CoreDNS, Cilium, MetalLB, Metrics Server, SMB & NFS CSI drivers, and Flux (so GitOps can deploy a CCM if desired).\n"
+  echo -e "         Next steps:"
+  echo -e "           • Install your CCM (recommended), or"
+  echo -e "           • Temporarily remove the taint: \e[36mkubectl taint nodes --all node.cloudprovider.kubernetes.io/uninitialized:NoSchedule-\e[0m, or"
+  echo -e "           • Add tolerations to your own workloads if you must schedule before CCM.\n"
+  echo -e "         If you intend to use VMware CPI, check out the AutoK8s VMware scripts at https://github.com/7wingfly/autok8s/tree/main/vmware"
+  PARAM_CHECK_WARN=true  
 fi
 
 if [[ -z "$k8sLoadBalancerIPRange" ]]; then
@@ -598,55 +620,34 @@ export APT_LOCK="-o DPkg::Lock::Timeout=600"
 apt-get update -qq $APT_LOCK
 apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
 
-# Add Docker Repository https://docs.docker.com/engine/install/ubuntu/
+# Install containerd https://github.com/containerd/containerd/blob/main/docs/getting-started.md
 
-export KEYRINGS_DIR="/etc/apt/keyrings"
-
-if [ ! -d $KEYRINGS_DIR ]; then
-  mkdir -m 0755 -p $KEYRINGS_DIR
-fi
-
-if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
-  echo -e "\033[32mAdding Docker repository\033[0m"
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o $KEYRINGS_DIR/docker.gpg
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=$KEYRINGS_DIR/docker.gpg] https://download.docker.com/linux/ubuntu \
-    $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-fi
-
-# Install Docker https://docs.docker.com/engine/install/ubuntu/
-
-echo -e "\033[32mInstalling Docker\033[0m"
+echo -e "\033[32mInstalling containerd\033[0m"
 
 apt-get update -qq $APT_LOCK
-apt-get install -qqy $APT_LOCK docker-ce docker-ce-cli
-
-tee /etc/docker/daemon.json >/dev/null <<EOF
-{
-  "exec-opts": ["native.cgroupdriver=systemd"],
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "100m"
-  },
-  "storage-driver": "overlay2"
-}
-EOF
-
-mkdir -p /etc/systemd/system/docker.service.d
+apt-get install -qqy $APT_LOCK containerd
 
 # Replace default config file to enable CRI plugin and SystemdCgroup
 # https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd-systemd
-tee /etc/containerd/config.toml >/dev/null <<EOF
+
+mkdir /etc/containerd
+
+cat <<EOF > /etc/containerd/config.toml
 version = 2
+
+[plugins."io.containerd.grpc.v1.cri".containerd]
+snapshotter = "overlayfs"
 
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
 runtime_type = "io.containerd.runc.v2"
 
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
 SystemdCgroup = true
+
 EOF
 
 systemctl daemon-reload
-systemctl restart docker
+systemctl enable --now containerd
 systemctl restart containerd
 
 # Install Kubernetes https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
@@ -664,7 +665,7 @@ normalize_k8s_version() {
 }
 
 pick_pkg_ver() {
-  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }'
+  apt-cache madison "$1" | awk -v re="$2" '$3 ~ re { print $3; exit }' || true
 }
 
 if [ $k8sVersion == "latest" ]; then
@@ -688,6 +689,12 @@ else
 fi
 
 # Add Kubernetes Repository
+
+export KEYRINGS_DIR="/etc/apt/keyrings"
+
+if [ ! -d $KEYRINGS_DIR ]; then
+  mkdir -m 0755 -p $KEYRINGS_DIR
+fi
 
 if [ -f /etc/apt/sources.list.d/kubernetes.list ]; then
   rm $KEYRINGS_DIR/kubernetes-apt-keyring.gpg
@@ -766,7 +773,7 @@ fi
 
 # Init Kubernetes https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
 
-if [[ -z "$k8sKubeadmConfig" && "$k8sClusterName" == "kubernetes" ]]; then  
+if [[ -z "$k8sKubeadmConfig" && "$k8sClusterName" == "kubernetes" && -z "$k8sCloudProvider" ]]; then  
   export KUBEADM_ARGS="--apiserver-advertise-address=$ipAddress --pod-network-cidr=$k8sPodNetworkCIDR --service-cidr=$k8sServiceCIDR --kubernetes-version=$KUBEADM_VERSION"
 else 
   if [[ -z "$k8sKubeadmConfig" ]]; then
@@ -775,27 +782,31 @@ else
 apiVersion: kubeadm.k8s.io/v1beta3
 kind: InitConfiguration
 localAPIEndpoint:
-  advertiseAddress: "$ipAddress"
+  advertiseAddress: ${ipAddress}
   bindPort: 6443
+nodeRegistration:
+  kubeletExtraArgs:
+    cloud-provider: ${k8sCloudProvider}
+    node-ip: ${ipAddress}
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
-clusterName: "$k8sClusterName"
-kubernetesVersion: "$KUBEADM_VERSION"
+clusterName: ${k8sClusterName}
+kubernetesVersion: ${KUBEADM_VERSION}
 networking:
-  podSubnet: "$k8sPodNetworkCIDR"
-  serviceSubnet: "$k8sServiceCIDR"
+  podSubnet: ${k8sPodNetworkCIDR}
+  serviceSubnet: ${k8sServiceCIDR}
 
 EOF
   fi
   echo -e "\033[32mValidating kubeadm config file\033[0m"
-  kubeadm config validate --config $k8sKubeadmConfig
-  export KUBEADM_ARGS="--config $k8sKubeadmConfig"
+  kubeadm config validate --config ${k8sKubeadmConfig}
+  export KUBEADM_ARGS="--config ${k8sKubeadmConfig}"
 fi
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
 
-kubeadm init $KUBEADM_ARGS $k8sKubeadmOptions
+kubeadm init ${KUBEADM_ARGS} ${k8sKubeadmOptions}
 
 # Setup kube config files.
 
@@ -820,6 +831,18 @@ if [ $k8sAllowMasterNodeSchedule == true ]; then
 
   kubectl taint node $hostname_lower node-role.kubernetes.io/control-plane:NoSchedule- || true
   kubectl taint node $hostname_lower node-role.kubernetes.io/master:NoSchedule- || true # for older versions
+fi
+
+# Patch Core-DNS deployment when using cloud provider
+
+if [ ! -z $k8sCloudProvider ]; then
+  kubectl patch deployment coredns -n kube-system --type='json' -p='[
+    {"op": "add", "path": "/spec/template/spec/tolerations/-", "value": {
+      "key": "node.cloudprovider.kubernetes.io/uninitialized",
+      "operator": "Exists",      
+      "effect": "NoSchedule"
+    }}
+  ]'
 fi
 
 # Install a CNI
@@ -878,23 +901,71 @@ elif [ $k8sCNI == "cilium" ]; then
     cilium hubble enable --ui
   fi
 
-  # Get Cilium status (Not all pods start up unless taint is removed)
-  
-  cilium upgrade --reuse-values \
-    --set hubble.relay.tolerations[0].key=node-role.kubernetes.io/control-plane \
-    --set hubble.relay.tolerations[0].operator=Exists \
-    --set hubble.relay.tolerations[0].effect=NoSchedule \
-    --set hubble.relay.tolerations[1].key=node-role.kubernetes.io/master \
-    --set hubble.relay.tolerations[1].operator=Exists \
-    --set hubble.relay.tolerations[1].effect=NoSchedule \
-    --set hubble.ui.tolerations[0].key=node-role.kubernetes.io/control-plane \
-    --set hubble.ui.tolerations[0].operator=Exists \
-    --set hubble.ui.tolerations[0].effect=NoSchedule \
-    --set hubble.ui.tolerations[1].key=node-role.kubernetes.io/master \
-    --set hubble.ui.tolerations[1].operator=Exists \
-    --set hubble.ui.tolerations[1].effect=NoSchedule  
-  
-  cilium status --wait
+  # Generate tolerations for Cilium
+
+  CILIUM_TOLERATION_KEYS=(
+    "node-role.kubernetes.io/master"
+    "node-role.kubernetes.io/control-plane"
+  )
+
+  if [ ! -z "$k8sCloudProvider" ]; then
+    CILIUM_TOLERATION_KEYS+=("node.cloudprovider.kubernetes.io/uninitialized")
+  fi
+
+  export CILIUM_TOLERATIONS=""
+
+  for target in "operator" "cilium" "hubble.relay" "hubble.ui"; do 
+    keys=("${CILIUM_TOLERATION_KEYS[@]}")
+    if [[ "$target" =~ ^(cilium|operator)$ ]]; then
+      keys+=(
+        "node.kubernetes.io/not-ready"
+        "node.kubernetes.io/unreachable"
+      )
+    fi
+    if [[ "$target" =~ "cilium" ]]; then
+      keys+=(
+        "node.kubernetes.io/disk-pressure"
+        "node.kubernetes.io/memory-pressure"
+        "node.kubernetes.io/pid-pressure"
+        "node.kubernetes.io/unschedulable"
+        "node.kubernetes.io/network-unavailable"
+      )
+    fi
+    for i in "${!keys[@]}"; do      
+      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].key=${keys[$i]}"
+      CILIUM_TOLERATIONS+=" --set $target.tolerations[$i].operator=Exists"
+    done
+  done
+
+  # Apply tolerations and wait for status to go green
+
+  cilium upgrade --reuse-values ${CILIUM_TOLERATIONS} --set ipam.operator.clusterPoolIPv4PodCIDRList="$k8sPodNetworkCIDR"
+  cilium status --wait || true
+fi
+
+# Define common tolerations
+
+export COMMON_TOLERATIONS="
+  --set controller.tolerations[0].key=node-role.kubernetes.io/controlplane \
+  --set controller.tolerations[0].operator=Exists \
+  --set controller.tolerations[0].effect=NoSchedule \
+  --set controller.tolerations[1].key=node-role.kubernetes.io/control-plane \
+  --set controller.tolerations[1].operator=Exists \
+  --set controller.tolerations[1].effect=NoSchedule \
+  --set controller.tolerations[2].key=node-role.kubernetes.io/master \
+  --set controller.tolerations[2].operator=Exists \
+  --set controller.tolerations[2].effect=NoSchedule \
+  --set controller.tolerations[3].key=CriticalAddonsOnly \
+  --set controller.tolerations[3].operator=Exists \
+  --set controller.tolerations[3].effect=NoSchedule
+"  
+
+if [ ! -z $k8sCloudProvider ]; then
+  COMMON_TOLERATIONS+="
+    --set controller.tolerations[4].key=node.cloudprovider.kubernetes.io/uninitialized \
+    --set controller.tolerations[4].operator=Exists \
+    --set controller.tolerations[4].effect=NoSchedule
+  "
 fi
 
 # Install Helm
@@ -944,7 +1015,7 @@ if [ $INSTALL_NFS_DRIVER == true ]; then
   export NFS_NAME_SPACE="kube-system"    
   export NFS_STORAGE_CLASS_FILE="nfsStorageClass.yaml"
   helm repo add csi-driver-nfs https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
-  helm install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE $CSI_CNI_ANNOTATIONS
+  helm install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
    
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-nfs/blob/master/docs/driver-parameters.md
   cat <<EOF > $NFS_STORAGE_CLASS_FILE
@@ -1005,7 +1076,7 @@ if [ $INSTALL_SMB_DRIVER == true ]; then
   export SMB_SECRET_NAME="smb-credentials-$SMB_SERVER_NAME_SAFE"  
   export SMB_STORAGE_CLASS_FILE="smbStorageClass.yaml"
   helm repo add csi-driver-smb https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts
-  helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true $CSI_CNI_ANNOTATIONS
+  helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
   kubectl create secret generic $SMB_SECRET_NAME --from-literal username="$smbUsername" --from-literal password="$smbPassword" -n $SMB_NAME_SPACE
 
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-smb/blob/master/docs/driver-parameters.md
@@ -1043,13 +1114,7 @@ if [[ $k8sCNI != "none" ]]; then
   kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb
   helm repo update
-  helm upgrade --install metallb metallb/metallb -n metallb-system --wait \
-    --set controller.tolerations[0].key=node-role.kubernetes.io/control-plane \
-    --set controller.tolerations[0].operator=Exists \
-    --set controller.tolerations[0].effect=NoSchedule \
-    --set controller.tolerations[1].key=node-role.kubernetes.io/master \
-    --set controller.tolerations[1].operator=Exists \
-    --set controller.tolerations[1].effect=NoSchedule
+  helm upgrade --install metallb metallb/metallb -n metallb-system --wait ${COMMON_TOLERATIONS}
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
   export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
@@ -1080,15 +1145,30 @@ fi
 
 echo -e "\033[32mInstall Metrics Server\033[0m"
 
-helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system \
-  --set args={--kubelet-insecure-tls} \
+export METRICS_SERVER_TOLERATIONS="
   --set tolerations[0].key=node-role.kubernetes.io/control-plane \
   --set tolerations[0].operator=Exists \
   --set tolerations[0].effect=NoSchedule \
   --set tolerations[1].key=node-role.kubernetes.io/master \
   --set tolerations[1].operator=Exists \
-  --set tolerations[1].effect=NoSchedule    
+  --set tolerations[1].effect=NoSchedule
+"
+
+  if [ ! -z $k8sCloudProvider ]; then
+    export METRICS_SERVER_TOLERATIONS_CLOUDPROVIDER="
+      --set tolerations[2].key=node.cloudprovider.kubernetes.io/uninitialized \
+      --set tolerations[2].operator=Exists \
+      --set tolerations[2].effect=NoSchedule
+    "
+  else
+    export METRICS_SERVER_TOLERATIONS_CLOUDPROVIDER=""
+  fi
+
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system \
+  --set args={--kubelet-insecure-tls} \
+  ${METRICS_SERVER_TOLERATIONS} \
+  ${METRICS_SERVER_TOLERATIONS_CLOUDPROVIDER}
 
 # Install and bootstrap Flux CD https://fluxcd.io/flux/cmd/flux_bootstrap_git/
 
@@ -1128,13 +1208,15 @@ if [[ "$fluxInstall" = true ]]; then
     else
       fluxGitPath="clusters/$k8sClusterName"
     fi
-  fi  
+  fi
+
+  FLUX_CCM_TAINT_TOLERATION=$([[ ! -z "$k8sCloudProvider" ]] && echo "node.cloudprovider.kubernetes.io/uninitialized" || echo "")
 
   flux bootstrap git $FLUX_BOOTSTRAP_ARGS \
     --branch=$fluxGitBranch \
     --path=$fluxGitPath \
     --silent \
-    --toleration-keys=node-role.kubernetes.io/control-plane,node-role.kubernetes.io/master \
+    --toleration-keys=node-role.kubernetes.io/control-plane,node-role.kubernetes.io/master,$FLUX_CCM_TAINT_TOLERATION \
     $fluxOptions || true
 fi
 
@@ -1159,3 +1241,9 @@ echo -e "curl -s https://raw.githubusercontent.com/7wingfly/autok8s/main/setup_w
     --k8s-master-port $JOIN_PORT \\
     --token $JOIN_TOKEN \\
     --discovery-token-ca-cert-hash $JOIN_CERT_HASH\n\033[0m"
+
+if [[ -n "$k8sCloudProvider" ]]; then
+  echo -e "\e[33mReminder:\e[0m Install your CCM (e.g. VMware CPI) or manually remove the taint with \e[35mkubectl taint nodes --all node.cloudprovider.kubernetes.io/uninitialized:NoSchedule-\e[0m."
+  echo -e "          \e[1mImportant:\e[0m Removing the taint will prevent the CCM from initializing correctly. The AutoK8s VMware script will add the taint if it is missing during CPI installation."
+  echo -e "          Workloads without tolerations will remain unschedulable until the taint is cleared."
+fi
