@@ -1139,10 +1139,13 @@ if [[ $k8sCNI != "none" ]]; then
   kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb --force-update
   helm repo update
-  helm upgrade --install metallb metallb/metallb -n metallb-system --wait ${COMMON_TOLERATIONS}
+  helm upgrade --install metallb metallb/metallb -n metallb-system ${COMMON_TOLERATIONS}
+
+  echo -e "\033[32mWaiting for MetalLB controller...\033[0m"
+  kubectl rollout status deployment/metallb-controller -n metallb-system --timeout=5m
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
-  export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
+  export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml"
   cat <<EOF > $METALLB_IPPOOL_L2AD
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
