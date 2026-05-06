@@ -647,7 +647,7 @@ apt-get install -qqy $APT_LOCK containerd
 # Replace default config file to enable CRI plugin and SystemdCgroup
 # https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd-systemd
 
-mkdir /etc/containerd
+mkdir -p /etc/containerd
 
 cat <<EOF > /etc/containerd/config.toml
 version = 2
