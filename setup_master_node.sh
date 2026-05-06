@@ -592,7 +592,8 @@ if [ "$configureTCPIPSetting" == true ]; then
   maskBin=$(echo "obase=2; $maskDec" | bc)
   cidr=$(echo "$maskBin" | tr -d '\n' | sed 's/0*$//' | wc -c)
 
-  cat <<EOF | tee /etc/netplan/01-netcfg.yaml > /dev/null
+  if command -v netplan &>/dev/null; then
+    cat <<EOF | tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
   version: 2
   ethernets:
@@ -607,8 +608,24 @@ network:
         search: [$(echo "${dnsSearch[@]}" | tr ' ' ',')]
         addresses: [$(echo "${dnsServers[@]}" | tr ' ' ',')]
 EOF
-
-  netplan apply
+    netplan apply
+  elif command -v nmcli &>/dev/null; then
+    CON_NAME=$(nmcli -t -f NAME,DEVICE connection show | grep ":${interface}$" | cut -d: -f1 | head -1)
+    if [ -z "$CON_NAME" ]; then
+      nmcli connection add type ethernet ifname "$interface" con-name "$interface"
+      CON_NAME="$interface"
+    fi
+    nmcli connection modify "$CON_NAME" \
+      ipv4.method manual \
+      ipv4.addresses "$ipAddress/$cidr" \
+      ipv4.gateway "$defaultGateway" \
+      ipv4.dns "$(IFS=,; echo "${dnsServers[*]}")" \
+      ipv4.dns-search "$(IFS=,; echo "${dnsSearch[*]}")"
+    nmcli connection up "$CON_NAME"
+  else
+    echo -e "\e[31mError:\e[0m No supported network configuration tool found (requires netplan or NetworkManager/nmcli)."
+    exit 1
+  fi
 fi
 
 # Install Prerequsite Packages
@@ -618,7 +635,7 @@ echo -e "\033[32mInstalling prerequisites\033[0m"
 export APT_LOCK="-o DPkg::Lock::Timeout=600"
 
 apt-get update -qq $APT_LOCK
-apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
+apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl gzip gnupg lsb-release
 
 # Install containerd https://github.com/containerd/containerd/blob/main/docs/getting-started.md
 
