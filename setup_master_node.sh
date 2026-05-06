@@ -654,6 +654,10 @@ mkdir -p /etc/containerd
 cat <<EOF > /etc/containerd/config.toml
 version = 2
 
+[plugins."io.containerd.grpc.v1.cri".cni]
+bin_dir = "/opt/cni/bin"
+conf_dir = "/etc/cni/net.d"
+
 [plugins."io.containerd.grpc.v1.cri".containerd]
 snapshotter = "overlayfs"
 
