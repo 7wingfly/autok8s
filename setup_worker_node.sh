@@ -474,6 +474,11 @@ kubeadm config validate --config ${k8sKubeadmConfig}
 
 echo -e "\033[32mJoining Kubernetes Cluster\033[0m"
 
+if [ -f /etc/kubernetes/kubelet.conf ]; then
+  echo -e "\033[33mNode already joined a cluster. Resetting first...\033[0m"
+  kubeadm reset -f
+fi
+
 kubeadm join --config ${k8sKubeadmConfig} ${k8sKubeadmOptions}
 
 # Print success message

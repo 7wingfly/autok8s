@@ -825,6 +825,11 @@ fi
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
 
+if [ -f /etc/kubernetes/admin.conf ]; then
+  echo -e "\033[33mKubernetes already initialized. Resetting first...\033[0m"
+  kubeadm reset -f
+fi
+
 kubeadm init ${KUBEADM_ARGS} ${k8sKubeadmOptions}
 
 # Setup kube config files.
@@ -1033,8 +1038,8 @@ if [ $INSTALL_NFS_DRIVER == true ]; then
   export NFS_SERVER_NAME_SAFE=$(echo "$nfsServer" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
   export NFS_NAME_SPACE="kube-system"    
   export NFS_STORAGE_CLASS_FILE="nfsStorageClass.yaml"
-  helm repo add csi-driver-nfs https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
-  helm install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
+  helm repo add csi-driver-nfs https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts --force-update
+  helm upgrade --install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
    
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-nfs/blob/master/docs/driver-parameters.md
   cat <<EOF > $NFS_STORAGE_CLASS_FILE
@@ -1094,9 +1099,10 @@ if [ $INSTALL_SMB_DRIVER == true ]; then
   export SMB_NAME_SPACE="kube-system"
   export SMB_SECRET_NAME="smb-credentials-$SMB_SERVER_NAME_SAFE"  
   export SMB_STORAGE_CLASS_FILE="smbStorageClass.yaml"
-  helm repo add csi-driver-smb https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts
-  helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
-  kubectl create secret generic $SMB_SECRET_NAME --from-literal username="$smbUsername" --from-literal password="$smbPassword" -n $SMB_NAME_SPACE
+  helm repo add csi-driver-smb https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts --force-update
+  helm upgrade --install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
+  kubectl create secret generic $SMB_SECRET_NAME --from-literal username="$smbUsername" --from-literal password="$smbPassword" -n $SMB_NAME_SPACE \
+    --dry-run=client -o yaml | kubectl apply -f -
 
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-smb/blob/master/docs/driver-parameters.md
   cat <<EOF > $SMB_STORAGE_CLASS_FILE
@@ -1131,7 +1137,7 @@ if [[ $k8sCNI != "none" ]]; then
   echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
   kubectl create namespace metallb-system || true
-  helm repo add metallb https://metallb.github.io/metallb
+  helm repo add metallb https://metallb.github.io/metallb --force-update
   helm repo update
   helm upgrade --install metallb metallb/metallb -n metallb-system --wait ${COMMON_TOLERATIONS}
 
@@ -1183,7 +1189,7 @@ export METRICS_SERVER_TOLERATIONS="
     export METRICS_SERVER_TOLERATIONS_CLOUDPROVIDER=""
   fi
 
-helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update
 helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system \
   --set args={--kubelet-insecure-tls} \
   ${METRICS_SERVER_TOLERATIONS} \
