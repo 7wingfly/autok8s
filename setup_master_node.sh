@@ -872,7 +872,7 @@ if [ $k8sCNI == "flannel" ]; then
   echo -e "\033[32mInstalling CNI: Flannel\033[0m"
 
   sysctl net.bridge.bridge-nf-call-iptables=1
-  sysctl -p
+  sysctl --system
   kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml --wait --timeout=2m
 
 elif [ $k8sCNI == "cilium" ]; then
