@@ -35,7 +35,8 @@ maskDec=$(( (m1 * 16777216) + (m2 * 65536) + (m3 * 256) + m4 ))
 maskBin=$(echo "obase=2; $maskDec" | bc)
 cidr=$(echo "$maskBin" | tr -d '\n' | sed 's/0*$//' | wc -c)
 
-cat <<EOF | sudo tee /etc/netplan/01-netcfg.yaml > /dev/null
+if command -v netplan &>/dev/null; then
+  cat <<EOF | sudo tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
   version: 2
   ethernets:
@@ -47,10 +48,26 @@ network:
       - to: default
         via: $defaultGateway
       nameservers:
-        search: [$(echo "${dnsSearch[@]}" | tr ' ' ',')]          
+        search: [$(echo "${dnsSearch[@]}" | tr ' ' ',')]
         addresses: [$(echo "${dnsServers[@]}" | tr ' ' ',')]
 EOF
-
-sudo netplan apply
+  sudo netplan apply
+elif command -v nmcli &>/dev/null; then
+  CON_NAME=$(nmcli -t -f NAME,DEVICE connection show | grep ":${interface}$" | cut -d: -f1 | head -1)
+  if [ -z "$CON_NAME" ]; then
+    nmcli connection add type ethernet ifname "$interface" con-name "$interface"
+    CON_NAME="$interface"
+  fi
+  nmcli connection modify "$CON_NAME" \
+    ipv4.method manual \
+    ipv4.addresses "$ipAddress/$cidr" \
+    ipv4.gateway "$defaultGateway" \
+    ipv4.dns "$(IFS=,; echo "${dnsServers[*]}")" \
+    ipv4.dns-search "$(IFS=,; echo "${dnsSearch[*]}")"
+  nmcli connection up "$CON_NAME"
+else
+  echo -e "\e[31mError:\e[0m No supported network configuration tool found (requires netplan or NetworkManager/nmcli)."
+  exit 1
+fi
 
 echo -e "\033[32mComplete\033[0m"

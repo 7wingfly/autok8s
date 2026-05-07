@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+export PATH="/usr/sbin:/sbin:$PATH"
+
 echo -e '\e[35m      _         _       \e[36m _    ___       \e[0m'
 echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
@@ -592,7 +594,8 @@ if [ "$configureTCPIPSetting" == true ]; then
   maskBin=$(echo "obase=2; $maskDec" | bc)
   cidr=$(echo "$maskBin" | tr -d '\n' | sed 's/0*$//' | wc -c)
 
-  cat <<EOF | tee /etc/netplan/01-netcfg.yaml > /dev/null
+  if command -v netplan &>/dev/null; then
+    cat <<EOF | tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
   version: 2
   ethernets:
@@ -607,8 +610,24 @@ network:
         search: [$(echo "${dnsSearch[@]}" | tr ' ' ',')]
         addresses: [$(echo "${dnsServers[@]}" | tr ' ' ',')]
 EOF
-
-  netplan apply
+    netplan apply
+  elif command -v nmcli &>/dev/null; then
+    CON_NAME=$(nmcli -t -f NAME,DEVICE connection show | grep ":${interface}$" | cut -d: -f1 | head -1)
+    if [ -z "$CON_NAME" ]; then
+      nmcli connection add type ethernet ifname "$interface" con-name "$interface"
+      CON_NAME="$interface"
+    fi
+    nmcli connection modify "$CON_NAME" \
+      ipv4.method manual \
+      ipv4.addresses "$ipAddress/$cidr" \
+      ipv4.gateway "$defaultGateway" \
+      ipv4.dns "$(IFS=,; echo "${dnsServers[*]}")" \
+      ipv4.dns-search "$(IFS=,; echo "${dnsSearch[*]}")"
+    nmcli connection up "$CON_NAME"
+  else
+    echo -e "\e[31mError:\e[0m No supported network configuration tool found (requires netplan or NetworkManager/nmcli)."
+    exit 1
+  fi
 fi
 
 # Install Prerequsite Packages
@@ -618,7 +637,7 @@ echo -e "\033[32mInstalling prerequisites\033[0m"
 export APT_LOCK="-o DPkg::Lock::Timeout=600"
 
 apt-get update -qq $APT_LOCK
-apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
+apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl gzip gnupg lsb-release
 
 # Install containerd https://github.com/containerd/containerd/blob/main/docs/getting-started.md
 
@@ -630,10 +649,14 @@ apt-get install -qqy $APT_LOCK containerd
 # Replace default config file to enable CRI plugin and SystemdCgroup
 # https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd-systemd
 
-mkdir /etc/containerd
+mkdir -p /etc/containerd
 
 cat <<EOF > /etc/containerd/config.toml
 version = 2
+
+[plugins."io.containerd.grpc.v1.cri".cni]
+bin_dir = "/opt/cni/bin"
+conf_dir = "/etc/cni/net.d"
 
 [plugins."io.containerd.grpc.v1.cri".containerd]
 snapshotter = "overlayfs"
@@ -806,6 +829,11 @@ fi
 
 echo -e "\033[32mInitilizing Kubernetes\033[0m"
 
+if [ -f /etc/kubernetes/admin.conf ]; then
+  echo -e "\033[33mKubernetes already initialized. Resetting first...\033[0m"
+  kubeadm reset -f
+fi
+
 kubeadm init ${KUBEADM_ARGS} ${k8sKubeadmOptions}
 
 # Setup kube config files.
@@ -853,7 +881,7 @@ if [ $k8sCNI == "flannel" ]; then
   echo -e "\033[32mInstalling CNI: Flannel\033[0m"
 
   sysctl net.bridge.bridge-nf-call-iptables=1
-  sysctl -p
+  sysctl --system
   kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml --wait --timeout=2m
 
 elif [ $k8sCNI == "cilium" ]; then
@@ -1014,8 +1042,8 @@ if [ $INSTALL_NFS_DRIVER == true ]; then
   export NFS_SERVER_NAME_SAFE=$(echo "$nfsServer" | tr '.' '-' | tr '[:upper:]' '[:lower:]')
   export NFS_NAME_SPACE="kube-system"    
   export NFS_STORAGE_CLASS_FILE="nfsStorageClass.yaml"
-  helm repo add csi-driver-nfs https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
-  helm install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
+  helm repo add csi-driver-nfs https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts --force-update
+  helm upgrade --install csi-driver-nfs csi-driver-nfs/csi-driver-nfs --namespace $NFS_NAME_SPACE ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
    
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-nfs/blob/master/docs/driver-parameters.md
   cat <<EOF > $NFS_STORAGE_CLASS_FILE
@@ -1075,9 +1103,10 @@ if [ $INSTALL_SMB_DRIVER == true ]; then
   export SMB_NAME_SPACE="kube-system"
   export SMB_SECRET_NAME="smb-credentials-$SMB_SERVER_NAME_SAFE"  
   export SMB_STORAGE_CLASS_FILE="smbStorageClass.yaml"
-  helm repo add csi-driver-smb https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts
-  helm install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
-  kubectl create secret generic $SMB_SECRET_NAME --from-literal username="$smbUsername" --from-literal password="$smbPassword" -n $SMB_NAME_SPACE
+  helm repo add csi-driver-smb https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts --force-update
+  helm upgrade --install csi-driver-smb csi-driver-smb/csi-driver-smb --namespace $SMB_NAME_SPACE --set controller.runOnControlPlane=true ${CSI_CNI_ANNOTATIONS} ${COMMON_TOLERATIONS}
+  kubectl create secret generic $SMB_SECRET_NAME --from-literal username="$smbUsername" --from-literal password="$smbPassword" -n $SMB_NAME_SPACE \
+    --dry-run=client -o yaml | kubectl apply -f -
 
   # See this page for all available parameters https://github.com/kubernetes-csi/csi-driver-smb/blob/master/docs/driver-parameters.md
   cat <<EOF > $SMB_STORAGE_CLASS_FILE
@@ -1112,12 +1141,15 @@ if [[ $k8sCNI != "none" ]]; then
   echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
   kubectl create namespace metallb-system || true
-  helm repo add metallb https://metallb.github.io/metallb
+  helm repo add metallb https://metallb.github.io/metallb --force-update
   helm repo update
-  helm upgrade --install metallb metallb/metallb -n metallb-system --wait ${COMMON_TOLERATIONS}
+  helm upgrade --install metallb metallb/metallb -n metallb-system ${COMMON_TOLERATIONS}
+
+  echo -e "\033[32mWaiting for MetalLB controller...\033[0m"
+  kubectl rollout status deployment/metallb-controller -n metallb-system --timeout=5m
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
-  export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
+  export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml"
   cat <<EOF > $METALLB_IPPOOL_L2AD
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
@@ -1164,7 +1196,7 @@ export METRICS_SERVER_TOLERATIONS="
     export METRICS_SERVER_TOLERATIONS_CLOUDPROVIDER=""
   fi
 
-helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update
 helm upgrade --install metrics-server metrics-server/metrics-server -n kube-system \
   --set args={--kubelet-insecure-tls} \
   ${METRICS_SERVER_TOLERATIONS} \

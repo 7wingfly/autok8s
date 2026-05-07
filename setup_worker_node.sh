@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+export PATH="/usr/sbin:/sbin:$PATH"
+
 echo -e '\e[35m      _         _       \e[36m _    ___       \e[0m'
 echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
@@ -250,7 +252,8 @@ if [ $configureTCPIPSetting == true ]; then
   maskBin=$(echo "obase=2; $maskDec" | bc)
   cidr=$(echo "$maskBin" | tr -d '\n' | sed 's/0*$//' | wc -c)
 
-  cat <<EOF | tee /etc/netplan/01-netcfg.yaml > /dev/null
+  if command -v netplan &>/dev/null; then
+    cat <<EOF | tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
   version: 2
   ethernets:
@@ -262,11 +265,27 @@ network:
       - to: default
         via: $defaultGateway
       nameservers:
-        search: [$(echo "${dnsSearch[@]}" | tr ' ' ',')]          
+        search: [$(echo "${dnsSearch[@]}" | tr ' ' ',')]
         addresses: [$(echo "${dnsServers[@]}" | tr ' ' ',')]
 EOF
-
-  netplan apply
+    netplan apply
+  elif command -v nmcli &>/dev/null; then
+    CON_NAME=$(nmcli -t -f NAME,DEVICE connection show | grep ":${interface}$" | cut -d: -f1 | head -1)
+    if [ -z "$CON_NAME" ]; then
+      nmcli connection add type ethernet ifname "$interface" con-name "$interface"
+      CON_NAME="$interface"
+    fi
+    nmcli connection modify "$CON_NAME" \
+      ipv4.method manual \
+      ipv4.addresses "$ipAddress/$cidr" \
+      ipv4.gateway "$defaultGateway" \
+      ipv4.dns "$(IFS=,; echo "${dnsServers[*]}")" \
+      ipv4.dns-search "$(IFS=,; echo "${dnsSearch[*]}")"
+    nmcli connection up "$CON_NAME"
+  else
+    echo -e "\e[31mError:\e[0m No supported network configuration tool found (requires netplan or NetworkManager/nmcli)."
+    exit 1
+  fi
 fi
 
 # Install Prerequsite Packages
@@ -276,7 +295,7 @@ export APT_LOCK="-o DPkg::Lock::Timeout=600"
 echo -e "\033[32mInstalling prerequisites\033[0m"
 
 apt-get update -qq $APT_LOCK
-apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl software-properties-common gzip gnupg lsb-release
+apt-get install -qqy $APT_LOCK apt-transport-https ca-certificates curl gzip gnupg lsb-release
 
 # Install containerd https://github.com/containerd/containerd/blob/main/docs/getting-started.md
 
@@ -288,10 +307,14 @@ apt-get install -qqy $APT_LOCK containerd
 # Replace default config file to enable CRI plugin and SystemdCgroup
 # https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd-systemd
 
-mkdir /etc/containerd
+mkdir -p /etc/containerd
 
 cat <<EOF > /etc/containerd/config.toml
 version = 2
+
+[plugins."io.containerd.grpc.v1.cri".cni]
+bin_dir = "/opt/cni/bin"
+conf_dir = "/etc/cni/net.d"
 
 [plugins."io.containerd.grpc.v1.cri".containerd]
 snapshotter = "overlayfs"
@@ -454,6 +477,11 @@ echo -e "\033[32mValidating kubeadm config file\033[0m"
 kubeadm config validate --config ${k8sKubeadmConfig}
 
 echo -e "\033[32mJoining Kubernetes Cluster\033[0m"
+
+if [ -f /etc/kubernetes/kubelet.conf ]; then
+  echo -e "\033[33mNode already joined a cluster. Resetting first...\033[0m"
+  kubeadm reset -f
+fi
 
 kubeadm join --config ${k8sKubeadmConfig} ${k8sKubeadmOptions}
 
