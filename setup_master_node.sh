@@ -1138,7 +1138,7 @@ if [[ $k8sCNI != "none" ]]; then
   kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb
   helm repo update
-  helm upgrade --install metallb metallb/metallb -n metallb-system --wait ${COMMON_TOLERATIONS} ${METALLB_SPEAKER_TOLERATIONS}
+  helm upgrade --install metallb metallb/metallb -n metallb-system --wait --set frrk8s.enabled=false --set speaker.frr.enabled=false ${COMMON_TOLERATIONS} ${METALLB_SPEAKER_TOLERATIONS}
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
   export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
