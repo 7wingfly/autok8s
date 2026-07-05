@@ -1133,12 +1133,35 @@ if [[ $k8sCNI != "none" ]]; then
     "
   fi
 
+  export METALLB_FRR_TOLERATIONS="
+    --set frr-k8s.frrk8s.tolerations[0].key=node-role.kubernetes.io/controlplane \
+    --set frr-k8s.frrk8s.tolerations[0].operator=Exists \
+    --set frr-k8s.frrk8s.tolerations[0].effect=NoSchedule \
+    --set frr-k8s.frrk8s.tolerations[1].key=node-role.kubernetes.io/control-plane \
+    --set frr-k8s.frrk8s.tolerations[1].operator=Exists \
+    --set frr-k8s.frrk8s.tolerations[1].effect=NoSchedule \
+    --set frr-k8s.frrk8s.tolerations[2].key=node-role.kubernetes.io/master \
+    --set frr-k8s.frrk8s.tolerations[2].operator=Exists \
+    --set frr-k8s.frrk8s.tolerations[2].effect=NoSchedule \
+    --set frr-k8s.frrk8s.tolerations[3].key=CriticalAddonsOnly \
+    --set frr-k8s.frrk8s.tolerations[3].operator=Exists \
+    --set frr-k8s.frrk8s.tolerations[3].effect=NoSchedule
+  "
+
+  if [ ! -z $k8sCloudProvider ]; then
+    METALLB_FRR_TOLERATIONS+="
+      --set frr-k8s.frrk8s.tolerations[4].key=node.cloudprovider.kubernetes.io/uninitialized \
+      --set frr-k8s.frrk8s.tolerations[4].operator=Exists \
+      --set frr-k8s.frrk8s.tolerations[4].effect=NoSchedule
+    "
+  fi
+
   echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
   kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb
   helm repo update
-  helm upgrade --install metallb metallb/metallb -n metallb-system --wait --set frrk8s.enabled=false --set speaker.frr.enabled=false ${COMMON_TOLERATIONS} ${METALLB_SPEAKER_TOLERATIONS}
+  helm upgrade --install metallb metallb/metallb -n metallb-system --wait ${COMMON_TOLERATIONS} ${METALLB_SPEAKER_TOLERATIONS} ${METALLB_FRR_TOLERATIONS}
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
   export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
