@@ -1,3 +1,8 @@
+## 1.7.1
+*July 7th 2026*
+
+- Fix MetalLB Speaker and FFR tolerations not being applied.
+
 ## 1.7.0
 *October 17th 2025*
 
