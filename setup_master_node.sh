@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.7.0\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.7.1\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -1109,12 +1109,59 @@ fi
 # Install MetalLB https://metallb.universe.tf/installation/
 
 if [[ $k8sCNI != "none" ]]; then
+
+  export METALLB_SPEAKER_TOLERATIONS="
+    --set speaker.tolerations[0].key=node-role.kubernetes.io/controlplane \
+    --set speaker.tolerations[0].operator=Exists \
+    --set speaker.tolerations[0].effect=NoSchedule \
+    --set speaker.tolerations[1].key=node-role.kubernetes.io/control-plane \
+    --set speaker.tolerations[1].operator=Exists \
+    --set speaker.tolerations[1].effect=NoSchedule \
+    --set speaker.tolerations[2].key=node-role.kubernetes.io/master \
+    --set speaker.tolerations[2].operator=Exists \
+    --set speaker.tolerations[2].effect=NoSchedule \
+    --set speaker.tolerations[3].key=CriticalAddonsOnly \
+    --set speaker.tolerations[3].operator=Exists \
+    --set speaker.tolerations[3].effect=NoSchedule
+  "  
+
+  if [ ! -z $k8sCloudProvider ]; then
+    METALLB_SPEAKER_TOLERATIONS+="
+      --set speaker.tolerations[4].key=node.cloudprovider.kubernetes.io/uninitialized \
+      --set speaker.tolerations[4].operator=Exists \
+      --set speaker.tolerations[4].effect=NoSchedule
+    "
+  fi
+
+  export METALLB_FRR_TOLERATIONS="
+    --set frr-k8s.frrk8s.tolerations[0].key=node-role.kubernetes.io/controlplane \
+    --set frr-k8s.frrk8s.tolerations[0].operator=Exists \
+    --set frr-k8s.frrk8s.tolerations[0].effect=NoSchedule \
+    --set frr-k8s.frrk8s.tolerations[1].key=node-role.kubernetes.io/control-plane \
+    --set frr-k8s.frrk8s.tolerations[1].operator=Exists \
+    --set frr-k8s.frrk8s.tolerations[1].effect=NoSchedule \
+    --set frr-k8s.frrk8s.tolerations[2].key=node-role.kubernetes.io/master \
+    --set frr-k8s.frrk8s.tolerations[2].operator=Exists \
+    --set frr-k8s.frrk8s.tolerations[2].effect=NoSchedule \
+    --set frr-k8s.frrk8s.tolerations[3].key=CriticalAddonsOnly \
+    --set frr-k8s.frrk8s.tolerations[3].operator=Exists \
+    --set frr-k8s.frrk8s.tolerations[3].effect=NoSchedule
+  "
+
+  if [ ! -z $k8sCloudProvider ]; then
+    METALLB_FRR_TOLERATIONS+="
+      --set frr-k8s.frrk8s.tolerations[4].key=node.cloudprovider.kubernetes.io/uninitialized \
+      --set frr-k8s.frrk8s.tolerations[4].operator=Exists \
+      --set frr-k8s.frrk8s.tolerations[4].effect=NoSchedule
+    "
+  fi
+
   echo -e "\033[32mInstall and Configure MetalLB\033[0m"
 
   kubectl create namespace metallb-system || true
   helm repo add metallb https://metallb.github.io/metallb
   helm repo update
-  helm upgrade --install metallb metallb/metallb -n metallb-system --wait ${COMMON_TOLERATIONS}
+  helm upgrade --install metallb metallb/metallb -n metallb-system --wait ${COMMON_TOLERATIONS} ${METALLB_SPEAKER_TOLERATIONS} ${METALLB_FRR_TOLERATIONS}
 
   # https://metallb.universe.tf/configuration/_advanced_l2_configuration/
   export METALLB_IPPOOL_L2AD="metallb-ippool-l2ad.yaml" 
