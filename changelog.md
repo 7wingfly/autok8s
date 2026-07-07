@@ -2,6 +2,7 @@
 *July 7th 2026*
 
 - Fix MetalLB Speaker and FFR tolerations not being applied.
+- Fix race condition with MetalLB IPAddressPool resource creation and validating webhook
 
 ## 1.7.0
 *October 17th 2025*
