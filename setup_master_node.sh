@@ -1182,7 +1182,13 @@ metadata:
   namespace: metallb-system
 EOF
 
-  kubectl apply -f $METALLB_IPPOOL_L2AD -n metallb-system
+  for i in $(seq 1 30); do
+    if kubectl apply -f $METALLB_IPPOOL_L2AD -n metallb-system; then
+      break
+    fi
+    echo "MetalLB webhook not ready yet, retrying ($i/30)..."
+    sleep 5
+  done
   rm $METALLB_IPPOOL_L2AD
 else
   echo -e "\033[33mSkipping Metal LB step. You will need to run this manually once you've installed a CNI in order to access your pods from your local network.\033[0m"
