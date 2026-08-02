@@ -56,6 +56,7 @@ export k8sLoadBalancerIPRange=""                            # Either a range suc
 export k8sCNI="flannel"                                     # Choose a Kubernetes network plugin.
 export k8sCNIOptions=""                                     # Additional options passed to the CNI installation. Currently only supported for Cilium (passed to 'cilium install').
 export k8sInstallGatewayAPI=true                            # Set to 'false' to skip installing the Gateway API CRDs (standard channel). Most implementations require these before they start, including Cilium when using 'gatewayAPI.enabled=true'.
+export k8sGatewayAPIRelease=standard                        # Set to 'experimental' to install the Gateway API CRDs from the experimental channel. This is required for Cilium's Gateway API controller when using TLSRoute v1alpha2 (Cilium 1.19). Cilium 1.20+ supports TLSRoute v1 from the standard channel.
 export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice if you're only going to have a single node.
 export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm init command. Do not include --config, --apiserver-advertise-address, --pod-network-cidr or --service-cidr.
 export k8sKubeadmConfig=""                                  # Path to kubeadm config file. Cannot be used with 'k8sClusterName', 'k8sPodNetworkCIDR' or 'k8sServiceCIDR'.
@@ -126,6 +127,7 @@ while [[ $# -gt 0 ]]; do
         --k8s-cni) k8sCNI="$2"; shift; shift;;
         --k8s-cni-options) k8sCNIOptions="$2"; shift; shift;;
         --k8s-install-gateway-api) k8sInstallGatewayAPI="$2"; shift; shift;;
+        --k8s-gateway-api-release) k8sGatewayAPIRelease="${2,,}"; shift; shift;;
         --k8s-allow-master-node-schedule) k8sAllowMasterNodeSchedule="$2"; shift; shift;;
         --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
         --k8s-kubeadm-config) k8sKubeadmConfig="$2"; shift; shift;;
@@ -285,6 +287,11 @@ fi
 
 if [[ ! "$k8sInstallGatewayAPI" =~ ^(true|false)$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--k8s-install-gateway-api\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ ! "$k8sGatewayAPIRelease" =~ ^(standard|experimental)$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-gateway-api-release\e[0m must be set to either \e[35mstandard\e[0m or \e[35mexperimental\e[0m."
     PARAM_CHECK_PASS=false
 fi
 
@@ -915,8 +922,8 @@ fi
 # Install Gateway API CRDs https://gateway-api.sigs.k8s.io
 
 if [ $k8sInstallGatewayAPI == true ]; then
-  echo -e "\033[32mInstalling Gateway API CRDs\033[0m"
-  kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/latest/download/standard-install.yaml
+  echo -e "\033[32mInstalling Gateway API CRDs ($k8sGatewayAPIRelease channel)\033[0m"
+  kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/latest/download/$k8sGatewayAPIRelease-install.yaml  
 fi
 
 # Install a CNI
