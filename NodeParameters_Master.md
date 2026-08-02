@@ -21,9 +21,11 @@ Parameter values which are wrapped in quotes must include the quotes when applie
 |`--k8s-load-balancer`|The load balancer to install. `cilium` requires `--k8s-cni cilium`.|`metallb`|`cilium` or `none`|No|
 |`--k8s-load-balancer-ip-range`|The IP range or CIDR for Kubernetes load balancer.|-|`192.168.0.10-192.168.0.15`<br>or<br>`192.168.0.1/24`|When `--k8s-load-balancer` is not `none`|
 |`--k8s-cni`|The Kubernetes network plugin to install.|`flannel`|`cilium` or `none`|No|
+|`--k8s-cni-version`|The version of the CNI to install.|`latest`|`1.20.0`|No|
 |`--k8s-cni-options`|Additional options passed to the CNI installation. Currently only supported with `cilium`.|-|`"--set gatewayAPI.enabled=true"`|No|
 |`--k8s-install-gateway-api`|Set to `false` to skip installing the [Gateway API](https://gateway-api.sigs.k8s.io) CRDs.|`true`|`false`|No|
-|`--k8s-gateway-api-release`|The release channel for Gateway API.|`Stable`|`Experiemental`|No|
+|`--k8s-gateway-api-release`|The release channel for Gateway API.|`standard`|`experimental`|No|
+|`--k8s-gateway-api-version`|The version of Gateway API to install.|`latest`|`1.6.1`|No|
 |`--k8s-allow-master-node-schedule`|Set to `true` to allow master node to schedule pods.|`true`|`false`|No|
 |`--k8s-kubeadm-options`|Additional options to pass into the `kubeadm init` command.|-|`"--ignore-preflight-errors=all"`|No|
 |`--k8s-kubeadm-config`|Kubeadm config file to pass into `kubeadm init --config <file>`.|-|`"/path/to/config.yaml"`|No|

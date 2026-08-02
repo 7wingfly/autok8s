@@ -54,9 +54,11 @@ export k8sServiceCIDR="10.96.0.0/12"                        # Service network CI
 export k8sLoadBalancer="metallb"                            # Choose a load balancer. Options are 'metallb' (default), 'cilium' or 'none'. 'cilium' requires the Cilium CNI.
 export k8sLoadBalancerIPRange=""                            # Either a range such as "192.168.0.100-192.168.0.150" or a CIDR. Required unless 'k8sLoadBalancer' is 'none'.
 export k8sCNI="flannel"                                     # Choose a Kubernetes network plugin.
+export k8sCNIVersion="latest"                               # The version of the CNI to install.
 export k8sCNIOptions=""                                     # Additional options passed to the CNI installation. Currently only supported for Cilium (passed to 'cilium install').
 export k8sInstallGatewayAPI=true                            # Set to 'false' to skip installing the Gateway API CRDs (standard channel). Most implementations require these before they start, including Cilium when using 'gatewayAPI.enabled=true'.
 export k8sGatewayAPIRelease=standard                        # Set to 'experimental' to install the Gateway API CRDs from the experimental channel. This is required for Cilium's Gateway API controller when using TLSRoute v1alpha2 (Cilium 1.19). Cilium 1.20+ supports TLSRoute v1 from the standard channel.
+export k8sGatewayAPIVersion="latest"                        # The version of the Gateway API CRDs to install.
 export k8sAllowMasterNodeSchedule=true                      # Disabling this is best practice if you're only going to have a single node.
 export k8sKubeadmOptions=""                                 # Additional options you can pass into the kubeadm init command. Do not include --config, --apiserver-advertise-address, --pod-network-cidr or --service-cidr.
 export k8sKubeadmConfig=""                                  # Path to kubeadm config file. Cannot be used with 'k8sClusterName', 'k8sPodNetworkCIDR' or 'k8sServiceCIDR'.
@@ -125,9 +127,11 @@ while [[ $# -gt 0 ]]; do
         --k8s-load-balancer) k8sLoadBalancer="${2,,}"; shift; shift;;
         --k8s-load-balancer-ip-range) k8sLoadBalancerIPRange="$2"; shift; shift;;
         --k8s-cni) k8sCNI="$2"; shift; shift;;
+        --k8s-cni-version) k8sCNIVersion="$2"; shift; shift;;
         --k8s-cni-options) k8sCNIOptions="$2"; shift; shift;;
         --k8s-install-gateway-api) k8sInstallGatewayAPI="$2"; shift; shift;;
         --k8s-gateway-api-release) k8sGatewayAPIRelease="${2,,}"; shift; shift;;
+        --k8s-gateway-api-version) k8sGatewayAPIVersion="$2"; shift; shift;;
         --k8s-allow-master-node-schedule) k8sAllowMasterNodeSchedule="$2"; shift; shift;;
         --k8s-kubeadm-options) k8sKubeadmOptions="$2"; shift; shift;;
         --k8s-kubeadm-config) k8sKubeadmConfig="$2"; shift; shift;;
@@ -285,6 +289,14 @@ if [[ ! -z "$k8sCNIOptions" && "$k8sCNI" != "cilium" ]]; then
     PARAM_CHECK_PASS=false
 fi
 
+if [[ ! $k8sCNIVersion =~ ^(latest|v?[0-9]+(\.[0-9]+){1,2})$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-cni-version\e[0m value \e[35m$k8sCNIVersion\e[0m is not in the correct format."
+    PARAM_CHECK_PASS=false
+elif [[ "$k8sCNIVersion" != "latest" && "$k8sCNI" == "none" ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-cni-version\e[0m cannot be used when \e[35m--k8s-cni\e[0m is set to \e[35mnone\e[0m."
+    PARAM_CHECK_PASS=false
+fi
+
 if [[ ! "$k8sInstallGatewayAPI" =~ ^(true|false)$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--k8s-install-gateway-api\e[0m must be set to either \e[35mtrue\e[0m or \e[35mfalse\e[0m."
     PARAM_CHECK_PASS=false
@@ -292,6 +304,17 @@ fi
 
 if [[ ! "$k8sGatewayAPIRelease" =~ ^(standard|experimental)$ ]]; then
     echo -e "\e[31mError:\e[0m \e[35m--k8s-gateway-api-release\e[0m must be set to either \e[35mstandard\e[0m or \e[35mexperimental\e[0m."
+    PARAM_CHECK_PASS=false
+elif [[ "$k8sGatewayAPIRelease" == "experimental" && "$k8sInstallGatewayAPI" == false ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-gateway-api-release experimental\e[0m cannot be used when \e[35m--k8s-install-gateway-api\e[0m is set to \e[35mfalse\e[0m."
+    PARAM_CHECK_PASS=false
+fi
+
+if [[ ! $k8sGatewayAPIVersion =~ ^(latest|v?[0-9]+(\.[0-9]+){1,2})$ ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-gateway-api-version\e[0m value \e[35m$k8sGatewayAPIVersion\e[0m is not in the correct format."
+    PARAM_CHECK_PASS=false
+elif [[ "$k8sGatewayAPIVersion" != "latest" && "$k8sInstallGatewayAPI" == false ]]; then
+    echo -e "\e[31mError:\e[0m \e[35m--k8s-gateway-api-version\e[0m cannot be used when \e[35m--k8s-install-gateway-api\e[0m is set to \e[35mfalse\e[0m."
     PARAM_CHECK_PASS=false
 fi
 
@@ -923,7 +946,11 @@ fi
 
 if [ $k8sInstallGatewayAPI == true ]; then
   echo -e "\033[32mInstalling Gateway API CRDs ($k8sGatewayAPIRelease channel)\033[0m"
-  kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/latest/download/$k8sGatewayAPIRelease-install.yaml  
+  if [ $k8sGatewayAPIVersion == "latest" ]; then
+    kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/latest/download/$k8sGatewayAPIRelease-install.yaml
+  else
+    kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v${k8sGatewayAPIVersion#v}/$k8sGatewayAPIRelease-install.yaml
+  fi
 fi
 
 # Install a CNI
@@ -935,7 +962,12 @@ if [ $k8sCNI == "flannel" ]; then
 
   sysctl net.bridge.bridge-nf-call-iptables=1
   sysctl -p
-  kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml --wait --timeout=2m
+
+  if [ $k8sCNIVersion == "latest" ]; then
+    kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml --wait --timeout=2m
+  else
+    kubectl apply -f https://github.com/flannel-io/flannel/releases/download/v${k8sCNIVersion#v}/kube-flannel.yml --wait --timeout=2m
+  fi
 
 elif [ $k8sCNI == "cilium" ]; then
   # Cilium https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/
@@ -966,7 +998,13 @@ elif [ $k8sCNI == "cilium" ]; then
     rm hubble-linux-${HUBBLE_ARCH}.tar.gz{,.sha256sum}
   fi
 
-  # Install Cilium  
+  # Install Cilium
+
+  if [ "$k8sCNIVersion" == "latest" ]; then
+    export CILIUM_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium/main/stable.txt)
+  else
+    export CILIUM_VERSION="v${k8sCNIVersion#v}"
+  fi
 
   export CILIUM_LB_OPTIONS=""
   
@@ -992,7 +1030,7 @@ elif [ $k8sCNI == "cilium" ]; then
     fi
   fi
 
-  cilium install ${CILIUM_LB_OPTIONS} ${CILIUM_GATEWAY_OPTIONS} ${k8sCNIOptions} || true
+  cilium install --version ${CILIUM_VERSION} ${CILIUM_LB_OPTIONS} ${CILIUM_GATEWAY_OPTIONS} ${k8sCNIOptions} || true
 
   # Enable Hubble & Hubble UI
 
@@ -1044,7 +1082,7 @@ elif [ $k8sCNI == "cilium" ]; then
 
   # Apply tolerations and wait for status to go green
 
-  cilium upgrade --reuse-values ${CILIUM_TOLERATIONS} --set ipam.operator.clusterPoolIPv4PodCIDRList="$k8sPodNetworkCIDR"
+  cilium upgrade --version ${CILIUM_VERSION} --reuse-values ${CILIUM_TOLERATIONS} --set ipam.operator.clusterPoolIPv4PodCIDRList="$k8sPodNetworkCIDR"
   cilium status --wait || true
 fi
 
