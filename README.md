@@ -40,6 +40,8 @@ Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
 - Creates the `~/.kube/config` files so you can use `kubectl` as soon as its finished.
 
+- Installs Gateway API CRDs 
+
 - Installs a CNI (You can choose between `flannel` (default), `cilium`, or `none` if you want to install your own later)
 
 - Installs Helm.
@@ -52,7 +54,7 @@ Here's a high-level overview of the steps `setup_master_node.sh` will perform:
 
     (Again this is optional. You can also specify an existing SMB and/or NFS server to use rather than make the master node a file server).
 
-- Installs MetalLB via Helm chart (Requires that you reserve a range of IP addresses on your local network to be used by Kubernetes [services](https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer) of type `LoadBalancer`).
+- Installs a Load-Balancer (You can choose between `metallb` (default), `cilium`, or `none` if you want to install your own later). You will need to reserve a range of IPs for Kubernetes [services](https://kubernetes.io/docs/concepts/services-networking/service/#loadbalancer). 
 
 - Installs Metrics Server via Helm chart.
 
@@ -160,6 +162,10 @@ https://github.com/flannel-io/flannel/#readme
 Cilium networking docs:
 <br>
 https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default
+
+Gateway API docs:
+<br>
+https://gateway-api.sigs.k8s.io/docs/introduction/
 
 NFS CSI driver:
 <br>
