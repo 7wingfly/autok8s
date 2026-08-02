@@ -1,11 +1,14 @@
 ## 1.8.0
-*August 2nd 2026*
+*August 3rd 2026*
 
 - Add Gateway API CRDs. Can be disabled with `--k8s-install-gateway-api=false`
 - Add `--k8s-cni-options` argument in master script to pass additional options to `cilium install`.
 - Add `--k8s-load-balancer` argument in master script. Options are `metallb` (default), `cilium` or `none`.
 - When `--k8s-load-balancer` is `cilium`, kube-proxy replacement is enabled and the kube-proxy installation is skipped automatically (unless a custom kubeadm config file is provided).
 - Cilium's Gateway API controller is enabled automatically when the Gateway API CRDs are installed and kube-proxy replacement is enabled.
+- Add `--k8s-gateway-api-release` argument in master script to choose the release channel.
+- Add `--k8s-gateway-api-version` argument in master script.
+- Add `--k8s-cni-version` argument in master script.
 - `--k8s-cni none` now warns that `--k8s-load-balancer` will be set to `none` (previously the MetalLB installation was skipped silently).
 - `--k8s-load-balancer-ip-range` is no longer required when `--k8s-load-balancer` is `none`.
 
