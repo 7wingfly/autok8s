@@ -18,8 +18,14 @@ Parameter values which are wrapped in quotes must include the quotes when applie
 |`--k8s-version`|The version of Kubernetes to install.|`latest`|`1.34` or `1.34.1`|No|
 |`--k8s-pod-network-cidr`|The CIDR for pod network.|`10.244.0.0/16`|`10.244.0.0/16`|No|
 |`--k8s-service-cidr`|The CIDR for services.|`10.96.0.0/12`|`10.96.0.0/12`|No|
-|`--k8s-load-balancer-ip-range`|The IP range or CIDR for Kubernetes load balancer.|-|`192.168.0.10-192.168.0.15`<br>or<br>`192.168.0.1/24`|Yes|
+|`--k8s-load-balancer`|The load balancer to install. `cilium` requires `--k8s-cni cilium`.|`metallb`|`cilium` or `none`|No|
+|`--k8s-load-balancer-ip-range`|The IP range or CIDR for Kubernetes load balancer.|-|`192.168.0.10-192.168.0.15`<br>or<br>`192.168.0.1/24`|When `--k8s-load-balancer` is not `none`|
 |`--k8s-cni`|The Kubernetes network plugin to install.|`flannel`|`cilium` or `none`|No|
+|`--k8s-cni-version`|The version of the CNI to install.|`latest`|`1.20.0`|No|
+|`--k8s-cni-options`|Additional options passed to the CNI installation. Currently only supported with `cilium`.|-|`"--set gatewayAPI.enabled=true"`|No|
+|`--k8s-install-gateway-api`|Set to `false` to skip installing the [Gateway API](https://gateway-api.sigs.k8s.io) CRDs.|`true`|`false`|No|
+|`--k8s-gateway-api-release`|The release channel for Gateway API.|`standard`|`experimental`|No|
+|`--k8s-gateway-api-version`|The version of Gateway API to install.|`latest`|`1.6.1`|No|
 |`--k8s-allow-master-node-schedule`|Set to `true` to allow master node to schedule pods.|`true`|`false`|No|
 |`--k8s-kubeadm-options`|Additional options to pass into the `kubeadm init` command.|-|`"--ignore-preflight-errors=all"`|No|
 |`--k8s-kubeadm-config`|Kubeadm config file to pass into `kubeadm init --config <file>`.|-|`"/path/to/config.yaml"`|No|
@@ -62,7 +68,7 @@ Applying these options will install the NFS and/or SMB CSI driver(s) and create 
 
 ### Control-Plane (Master) Node Scheduling
 
-If you set `--k8s-allow-master-node-schedule` to `false` it will not be possible to deploy any workloads until a worker node has joined the cluster. This includes MetalLB (the load-balancer used to give make your cluster accessible from your local network). You can enable or disable scheduling after installation with these `kubectl` commands.
+If you set `--k8s-allow-master-node-schedule` to `false` it will not be possible to deploy any workloads until a worker node has joined the cluster. However, to ensure a successful initial setup, tolerations are added automatically to add-ons including the chosen load-balancer, CNI & CSI drivers, and the metrics server. You can enable or disable scheduling after installation with these `kubectl` commands.
 ```bash
 # Enable
 kubectl taint node $HOSTNAME node-role.kubernetes.io/control-plane:NoSchedule-
@@ -195,7 +201,57 @@ Example Usage - Kubernetes CNI
     --k8s-load-balancer-ip-range 192.168.0.1/24
 ```
 > [!IMPORTANT] 
-> Currently the options are `flannel`, `cilium` or `none`. If you choose `none`, MetalLB will also be skipped, and your control-plane node will be in a `NotReady` state until you install your own CNI and load balancer.
+> Currently the options are `flannel`, `cilium` or `none`. If you choose `none`, `--k8s-load-balancer` will also be set to `none`, and your control-plane node will be in a `NotReady` state until you install your own CNI and load balancer.
+>
+> When using `cilium` you can also set `--k8s-load-balancer cilium` to use Cilium as the load balancer instead of MetalLB. See the load balancer example below.
+
+<br>
+
+Example Usage - Load Balancer
+
+```bash
+./setup_master_node.sh \
+    --k8s-cni cilium \
+    --k8s-load-balancer cilium \
+    --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29
+```
+> [!IMPORTANT]
+>
+> - Options are `metallb` (default), `cilium` or `none`. With `none`, `--k8s-load-balancer-ip-range` is not required and services of type `LoadBalancer` will remain `pending` until you install a load balancer.
+> - `cilium` uses [Cilium L2 Announcements](https://docs.cilium.io/en/stable/network/l2-announcements/) and requires `--k8s-cni cilium`. This enables Cilium's kube-proxy replacement, and the kube-proxy installation is skipped automatically. If you provide your own kubeadm config file via `--k8s-kubeadm-config`, add `skipPhases: [addon/kube-proxy]` to its `InitConfiguration`.
+> - Both load balancers announce in L2 (ARP) mode using the same `--k8s-load-balancer-ip-range` value, so switching between them requires no other changes.
+
+<br>
+
+Example Usage - Additional Cilium Options
+
+```bash
+./setup_master_node.sh \  
+    --k8s-cni cilium \
+    --k8s-cni-options "--set encryption.enabled=true --set encryption.type=wireguard" \
+    --k8s-load-balancer cilium \
+    --k8s-load-balancer-ip-range 192.168.0.1/24
+```
+> [!IMPORTANT]
+>
+> - `--k8s-cni-options` can only be used when `--k8s-cni` is set to `cilium`. The options are passed directly into the `cilium install` command. Available options [here](https://docs.cilium.io/en/stable/helm-reference/).
+> - You do not need to include `kubeProxyReplacement`, `k8sServiceHost`, `k8sServicePort`, `l2announcements` or `k8sClientRateLimit` as these are already set in the script when `--k8s-load-balancer` is set to `cilium`. Options provided here take precedence, so only include these if you intend to override them.
+> - You do not need to include `gatewayAPI.enabled=true`. Cilium's Gateway API controller is enabled automatically when the Gateway API CRDs are installed and kube-proxy replacement is enabled. Include `gatewayAPI.enabled=false` if you do not want it.
+
+<br>
+
+Example Usage - Gateway API
+
+```bash
+./setup_master_node.sh \  
+    --k8s-install-gateway-api false \
+    --k8s-load-balancer-ip-range 192.168.0.1/24
+```
+> [!NOTE]
+>
+> The Gateway API CRDs are not included with Kubernetes and do not require a specific CNI or load balancer, so they are installed by default. Set `--k8s-install-gateway-api false` if you do not want them.
+>
+> The CRDs require an implementation such as Cilium, Envoy Gateway, NGINX Gateway Fabric or Istio before `Gateway` and `HTTPRoute` resources will do anything. Only Cilium can be installed by this script, and its Gateway API controller is enabled automatically when both `--k8s-cni` and `--k8s-load-balancer` are set to `cilium`. Other implementations must be installed yourself.
 
 <br>
 
@@ -250,8 +306,11 @@ Example Usage - All:
     --dns-servers "192.168.0.30 192.168.0.31 8.8.8.8" \
     --dns-search "domain1.local domain2.local" \
     --k8s-version 1.26.0-00 \
+    --k8s-load-balancer cilium \
     --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29 \
     --k8s-cni cilium \
+    --k8s-cni-options "--set gatewayAPI.enabled=true" \
+    --k8s-install-gateway-api true \
     --k8s-allow-master-node-schedule true \
     --k8s-kubeadm-options "--ignore-preflight-errors=all" \
     --k8s-kubeadm-config "/path/to/config.yaml" \
