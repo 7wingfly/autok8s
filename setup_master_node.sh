@@ -6,7 +6,7 @@ echo -e '\e[35m     / \  _   _| |_ ___ \e[36m| | _( _ ) ___  \e[0m'
 echo -e '\e[35m    / ▲ \| | | | __/   \\\e[36m| |/ /   \/ __| \e[0m'
 echo -e '\e[35m   / ___ \ |_| | ||  ●  \e[36m|   <  ♥  \__ \ \e[0m'
 echo -e '\e[35m  /_/   \_\__,_|\__\___/\e[36m|_|\_\___/|___/ \e[0m'
-echo -e '\e[35m                Version:\e[36m 1.8.0\e[0m\n'
+echo -e '\e[35m                Version:\e[36m 1.8.1\e[0m\n'
 echo -e '\e[35m  Kubernetes Installation Script:\e[36m Control-Plane Edition\e[0m\n'
 
 # Check sudo & keep sudo running
@@ -275,8 +275,15 @@ if [[ "$configureTCPIPSetting" == true ]]; then
 fi
 
 if [[ ! $k8sVersion =~ ^(latest|[0-9]{1,2}(\.[0-9]{1,2}){1,2})$ ]]; then
-    echo -e "\e[31mError:\e[0m \e[35m--k8s-version\e[0m value \e[35m$k8sVersion\e[0m is not in the correct format."
+  echo -e "\e[31mError:\e[0m \e[35m--k8s-version\e[0m value \e[35m$k8sVersion\e[0m is not in the correct format."
+  PARAM_CHECK_PASS=false
+else
+  export K8S_MIN_SUPPORTED_MAJ=1
+  export K8S_MIN_SUPPORTED_MIN=31
+  if (( BASH_REMATCH[1] < K8S_MIN_SUPPORTED_MAJ || (BASH_REMATCH[1] == K8S_MIN_SUPPORTED_MAJ && BASH_REMATCH[2] < K8S_MIN_SUPPORTED_MIN) )); then
+    echo -e "\e[31mError:\e[0m Kubernetes \e[35m$k8sVersion\e[0m is not supported. AutoK8s requires Kubernetes \e[35m${K8S_MIN_SUPPORTED_MAJ}.${K8S_MIN_SUPPORTED_MIN}\e[0m or newer."
     PARAM_CHECK_PASS=false
+  fi  
 fi
 
 if [[ ! $k8sCNI =~ ^(flannel|cilium|none)$ ]]; then
@@ -875,15 +882,17 @@ else
     fi
     export k8sKubeadmConfig="/tmp/kubeadm-config.yaml"
     cat <<EOF > $k8sKubeadmConfig
-apiVersion: kubeadm.k8s.io/v1beta3
+apiVersion: kubeadm.k8s.io/v1beta4
 kind: InitConfiguration
 localAPIEndpoint:
   advertiseAddress: ${ipAddress}
   bindPort: 6443
 nodeRegistration:
   kubeletExtraArgs:
-    cloud-provider: ${k8sCloudProvider}
-    node-ip: ${ipAddress}
+  - name: cloud-provider
+    value: "${k8sCloudProvider}"
+  - name: node-ip
+    value: "${ipAddress}"
 ${KUBEADM_INIT_SKIP_PHASES}
 ---
 apiVersion: kubeadm.k8s.io/v1beta4

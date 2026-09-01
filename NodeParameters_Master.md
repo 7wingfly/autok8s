@@ -305,7 +305,7 @@ Example Usage - All:
     --default-gateway 192.168.0.1 \
     --dns-servers "192.168.0.30 192.168.0.31 8.8.8.8" \
     --dns-search "domain1.local domain2.local" \
-    --k8s-version 1.26.0-00 \
+    --k8s-version 1.37.0 \
     --k8s-load-balancer cilium \
     --k8s-load-balancer-ip-range 192.168.0.20-192.168.0.29 \
     --k8s-cni cilium \
