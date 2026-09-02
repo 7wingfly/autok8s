@@ -1,3 +1,9 @@
+## 1.8.1
+*September 2nd 2026*
+
+- Fix issue where for kubeadmin InitConfiguration in API kubeadm.k8s.io/v1beta3 has been removed in 1.37.0.
+- Update master node doc with correct version parameter value.
+
 ## 1.8.0
 *August 3rd 2026*
 
