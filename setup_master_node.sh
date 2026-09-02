@@ -280,10 +280,13 @@ if [[ ! $k8sVersion =~ ^(latest|[0-9]{1,2}(\.[0-9]{1,2}){1,2})$ ]]; then
 else
   export K8S_MIN_SUPPORTED_MAJ=1
   export K8S_MIN_SUPPORTED_MIN=31
-  if (( BASH_REMATCH[1] < K8S_MIN_SUPPORTED_MAJ || (BASH_REMATCH[1] == K8S_MIN_SUPPORTED_MAJ && BASH_REMATCH[2] < K8S_MIN_SUPPORTED_MIN) )); then
-    echo -e "\e[31mError:\e[0m Kubernetes \e[35m$k8sVersion\e[0m is not supported. AutoK8s requires Kubernetes \e[35m${K8S_MIN_SUPPORTED_MAJ}.${K8S_MIN_SUPPORTED_MIN}\e[0m or newer."
-    PARAM_CHECK_PASS=false
-  fi  
+  if [[ "$k8sVersion" != "latest" ]]; then
+    IFS=. read -r VER_MAJ VER_MIN _ <<<"$k8sVersion"
+    if (( VER_MAJ < K8S_MIN_SUPPORTED_MAJ || (VER_MAJ == K8S_MIN_SUPPORTED_MAJ && VER_MIN < K8S_MIN_SUPPORTED_MIN) )); then
+      echo -e "\e[31mError:\e[0m Kubernetes \e[35m$k8sVersion\e[0m is not supported. AutoK8s requires Kubernetes \e[35m${K8S_MIN_SUPPORTED_MAJ}.${K8S_MIN_SUPPORTED_MIN}\e[0m or newer."
+      PARAM_CHECK_PASS=false
+    fi
+  fi
 fi
 
 if [[ ! $k8sCNI =~ ^(flannel|cilium|none)$ ]]; then
